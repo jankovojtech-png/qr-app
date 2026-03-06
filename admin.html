@@ -15,6 +15,32 @@
     h1{
       margin-bottom:20px;
     }
+    .stats{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      gap:16px;
+      margin-bottom:20px;
+    }
+    .card{
+      background:white;
+      padding:16px;
+      border-radius:8px;
+    }
+    .card-title{
+      font-size:14px;
+      color:#666;
+      margin-bottom:8px;
+    }
+    .card-value{
+      font-size:28px;
+      font-weight:bold;
+    }
+    .box{
+      background:white;
+      padding:16px;
+      margin-bottom:20px;
+      border-radius:8px;
+    }
     table{
       border-collapse:collapse;
       width:100%;
@@ -32,17 +58,28 @@
     tr:hover{
       background:#fafafa;
     }
-    .box{
-      background:white;
-      padding:16px;
-      margin-bottom:20px;
-      border-radius:8px;
-    }
   </style>
 </head>
 <body>
 
   <h1>Odpovědi z formulářů</h1>
+
+  <div class="stats">
+    <div class="card">
+      <div class="card-title">Počet odpovědí</div>
+      <div class="card-value" id="totalCount">0</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Průměr hodnocení</div>
+      <div class="card-value" id="avgRating">0</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Počet QR kódů</div>
+      <div class="card-value" id="codeCount">0</div>
+    </div>
+  </div>
 
   <div class="box" id="status">Načítám data...</div>
 
@@ -60,15 +97,24 @@
   </table>
 
   <script>
-    // SEM ZKOPÍRUJ PŘESNĚ STEJNÉ HODNOTY JAKO MÁŠ VE FUNKČNÍM index.html
     const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
     const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
 
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    function formatDate(value) {
+      if (!value) return "";
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return value;
+      return d.toLocaleString("cs-CZ");
+    }
+
     async function load() {
       const status = document.getElementById("status");
       const tbody = document.getElementById("tbody");
+      const totalCountEl = document.getElementById("totalCount");
+      const avgRatingEl = document.getElementById("avgRating");
+      const codeCountEl = document.getElementById("codeCount");
 
       try {
         const { data, error } = await client
@@ -84,13 +130,26 @@
 
         if (!data || data.length === 0) {
           status.textContent = "Zatím žádné odpovědi.";
+          totalCountEl.textContent = "0";
+          avgRatingEl.textContent = "0";
+          codeCountEl.textContent = "0";
           return;
         }
 
         status.textContent = "Načteno odpovědí: " + data.length;
+        totalCountEl.textContent = data.length;
+
+        const uniqueCodes = new Set();
+        const ratings = [];
 
         data.forEach((r) => {
           const answers = r.answers || {};
+          uniqueCodes.add(r.code_id || "");
+
+          const ratingNumber = Number(answers.rating);
+          if (!isNaN(ratingNumber) && answers.rating !== "" && answers.rating != null) {
+            ratings.push(ratingNumber);
+          }
 
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -98,10 +157,21 @@
             <td>${answers.name || ""}</td>
             <td>${answers.rating || ""}</td>
             <td>${answers.note || ""}</td>
-            <td>${r.created_at || ""}</td>
+            <td>${formatDate(r.created_at)}</td>
           `;
           tbody.appendChild(row);
         });
+
+        codeCountEl.textContent = uniqueCodes.size;
+
+        if (ratings.length > 0) {
+          const sum = ratings.reduce((a, b) => a + b, 0);
+          const avg = sum / ratings.length;
+          avgRatingEl.textContent = avg.toFixed(1);
+        } else {
+          avgRatingEl.textContent = "0";
+        }
+
       } catch (err) {
         status.textContent = "Neočekávaná chyba: " + err.message;
         console.error(err);
