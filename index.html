@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>QR formulář</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+
+body{
+font-family: Arial, sans-serif;
+background:#f4f6f8;
+display:flex;
+justify-content:center;
+padding:40px;
+}
+
+.container{
+background:white;
+padding:30px;
+border-radius:10px;
+box-shadow:0 4px 20px rgba(0,0,0,0.1);
+width:400px;
+}
+
+h1{
+margin-top:0;
+}
+
+label{
+display:block;
+margin-bottom:5px;
+font-weight:bold;
+}
+
+input,textarea{
+width:100%;
+padding:10px;
+margin-bottom:20px;
+border-radius:6px;
+border:1px solid #ccc;
+font-size:14px;
+}
+
+button{
+background:#2d7ef7;
+color:white;
+border:none;
+padding:12px;
+border-radius:6px;
+font-size:16px;
+cursor:pointer;
+width:100%;
+}
+
+button:hover{
+background:#1f63c9;
+}
+
+.success{
+color:green;
+margin-top:15px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1 id="title">QR formulář</h1>
+
+<form id="form"></form>
+
+<div id="message"></div>
+
+</div>
+
+<script>
+
+const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function loadForm(){
+
+const params = new URLSearchParams(window.location.search);
+const code = params.get("code");
+
+if(!code){
+document.body.innerHTML="Chybí QR kód";
+return;
+}
+
+const { data } = await client
+.from("codes")
+.select("*")
+.eq("id",code)
+.single();
+
+if(!data){
+document.body.innerHTML="QR nenalezen";
+return;
+}
+
+document.getElementById("title").innerText = data.title;
+
+const schema = data.schema;
+
+const form = document.getElementById("form");
+
+schema.forEach(field => {
+
+const label = document.createElement("label");
+label.innerText = field.label;
+
+let input;
+
+if(field.type === "textarea"){
+input = document.createElement("textarea");
+}
+else{
+input = document.createElement("input");
+
+if(field.type === "number"){
+input.type = "number";
+}
+else{
+input.type = "text";
+}
+}
+
+input.name = field.id;
+
+form.appendChild(label);
+form.appendChild(input);
+
+});
+
+const button = document.createElement("button");
+button.innerText="Odeslat";
+button.type="submit";
+
+form.appendChild(button);
+
+form.addEventListener("submit", async (e)=>{
+
+e.preventDefault();
+
+const answers = {};
+
+schema.forEach(field=>{
+
+const element = form.querySelector(`[name="${field.id}"]`);
+answers[field.id] = element.value;
+
+});
+
+const { error } = await client
+.from("responses")
+.insert([
+{
+code_id:code,
+answers:answers
+}
+]);
+
+if(error){
+alert("Chyba při ukládání");
+return;
+}
+
+document.getElementById("message").innerHTML =
+"<div class='success'>Odpověď byla uložena 👍</div>";
+
+form.reset();
+
+});
+
+}
+
+loadForm();
+
+</script>
+
+</body>
+
+</html>
