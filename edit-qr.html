@@ -1,4 +1,127 @@
 <!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upravit QR | QR App</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="auth-guard">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">QR App Admin</div>
+      <nav class="nav">
+        <a href="/admin.html">Odpovědi</a>
+        <a href="/my-qr.html">Moje QR</a>
+        <a href="/create-qr.html">Vytvořit QR</a>
+        <a href="/edit-qr.html" class="active">Editace</a>
+        <a href="/generator.html">Generátor</a>
+        <button id="logoutBtn" type="button">Odhlásit</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container page-narrow">
+    <div class="card">
+      <h1>Upravit QR</h1>
+      <p class="lead">Fyzický QR kód se nemění. Při uložení vznikne nová verze obsahu.</p>
+
+      <div class="row-links">
+        <a class="btn light" href="/my-qr.html">← Zpět na Moje QR</a>
+        <a class="btn light" id="responsesLink" href="/admin.html">Zobrazit odpovědi</a>
+      </div>
+
+      <div class="notice">
+        Pro jedno QR má dávat smysl pouze <strong>jedna aktivní verze</strong>. Starší verze zůstávají v historii, ale nové odpovědi padají jen do aktivní verze.
+      </div>
+
+      <div class="box" id="metaBox">Načítám QR...</div>
+      <div id="status" class="status"></div>
+
+      <label for="title">Název QR</label>
+      <input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742">
+
+      <label for="mode">Typ obsahu</label>
+      <select id="mode">
+        <option value="rating">Hodnocení + poznámka</option>
+        <option value="question">Jedna otázka + odpověď</option>
+        <option value="info">Pouze informace</option>
+      </select>
+
+      <label for="question">Otázka / text</label>
+      <textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
+      <div class="small">U typu „info“ se tento text zobrazí jako informace.</div>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn primary" type="button">Uložit jako novou verzi</button>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { client } from "/js/supabase.js";
+    import { requireAuth, logout } from "/js/auth.js";
+    import { $, getPublicUrl } from "/js/helpers.js";
+    import { buildSchema, detectModeFromSchema, getQuestionFromSchema } from "/js/schema.js";
+    import { showStatus, clearStatus, setBoxStatus, setLoading } from "/js/ui.js";
+
+    let currentUser = null;
+    let currentCodeId = null;
+    let currentVersionId = null;
+
+    const metaBox = $("#metaBox");
+    const status = $("#status");
+    const saveBtn = $("#saveBtn");
+    const responsesLink = $("#responsesLink");
+
+    async function loadQrDetail() {
+      clearStatus(status);
+      const code = new URLSearchParams(window.location.search).get("code");
+
+      if (!code) {
+        setBoxStatus(metaBox, "Chybí parametr code v URL.", "error");
+        saveBtn.disabled = true;
+        return;
+      }
+
+      currentCodeId = code;
+      responsesLink.href = "/admin.html?code=" + encodeURIComponent(code);
+
+      const { data: codeData, error: codeError } = await client
+        .from("codes")
+        .select("id, title, owner_id, active")
+        .eq("id", code)
+        .eq("owner_id", currentUser.id)
+        .single();
+
+      if (codeError || !codeData) {
+        setBoxStatus(metaBox, "QR nebyl nalezen nebo nepatří přihlášenému uživateli.", "error");
+        saveBtn.disabled = true;
+        return;
+      }
+
+      const { data: versionData, error: versionError } = await client
+        .from("code_versions")
+        .select("id, code_id, version_number, title, schema, is_active, created_at")
+        .eq("code_id", code)
+        .eq("is_active", true)
+        .order("version_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (versionError || !versionData) {
+        setBoxStatus(metaBox, "Nepodařilo se načíst aktivní verzi QR.", "error");
+        saveBtn.disabled = true;
+        return;
+      }
+
+      currentVersionId = versionData.id;
+      const mode = detectModeFromSchema(versionData.schema || []);
+      const questionText = getQuestionFromSchema(versionData.schema || [], mode);
+
+      $("#title").value = versionData.title || codeData.title || "";
       $("#mode").value = mode;
       $("#question").value = questionText;
 
@@ -25,7 +148,10 @@
       const mode = $("#mode").value;
       const question = $("#question").value.trim();
 
-      if (!title) return showStatus(status, "Vyplň název QR.", "error");
+      if (!title) {
+        showStatus(status, "Vyplň název QR.", "error");
+        return;
+      }
 
       setLoading(saveBtn, true, "Ukládám novou verzi...", "Uložit jako novou verzi");
 
@@ -40,7 +166,9 @@
           .limit(1)
           .single();
 
-        if (latestVersionError || !latestVersion) throw new Error("Nepodařilo se zjistit poslední číslo verze.");
+        if (latestVersionError || !latestVersion) {
+          throw new Error("Nepodařilo se zjistit poslední číslo verze.");
+        }
 
         const newVersionNumber = (latestVersion.version_number || 0) + 1;
 
@@ -50,15 +178,25 @@
           .eq("code_id", currentCodeId)
           .eq("is_active", true);
 
-        if (deactivateError) throw new Error("Chyba při deaktivaci staré verze: " + deactivateError.message);
+        if (deactivateError) {
+          throw new Error("Chyba při deaktivaci staré verze: " + deactivateError.message);
+        }
 
         const { data: newVersion, error: insertError } = await client
           .from("code_versions")
-          .insert([{ code_id: currentCodeId, version_number: newVersionNumber, title, schema, is_active: true }])
+          .insert([{
+            code_id: currentCodeId,
+            version_number: newVersionNumber,
+            title,
+            schema,
+            is_active: true
+          }])
           .select()
           .single();
 
-        if (insertError) throw new Error("Chyba při vytvoření nové verze: " + insertError.message);
+        if (insertError) {
+          throw new Error("Chyba při vytvoření nové verze: " + insertError.message);
+        }
 
         const { error: codeUpdateError } = await client
           .from("codes")
@@ -67,7 +205,11 @@
           .eq("owner_id", currentUser.id);
 
         if (codeUpdateError) {
-          showStatus(status, "Nová verze vznikla, ale nepodařilo se upravit hlavní název QR: " + codeUpdateError.message, "error");
+          showStatus(
+            status,
+            "Nová verze vznikla, ale nepodařilo se upravit hlavní název QR: " + codeUpdateError.message,
+            "error"
+          );
         } else {
           showStatus(status, "Hotovo. Byla vytvořena nová verze obsahu QR.", "success");
         }
