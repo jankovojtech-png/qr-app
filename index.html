@@ -1,4 +1,66 @@
 <!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR formulář</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="public-page">
+  <main class="public-layout">
+    <div class="public-card">
+      <h1 id="title">QR formulář</h1>
+      <form id="form"></form>
+      <div id="message"></div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { client } from "/js/supabase.js";
+    import { $ } from "/js/helpers.js";
+
+    const titleEl = $("#title");
+    const formEl = $("#form");
+    const messageEl = $("#message");
+
+    function showError(titleText, htmlMessage) {
+      titleEl.textContent = titleText;
+      formEl.innerHTML = "";
+      messageEl.innerHTML = htmlMessage;
+    }
+
+    function createField(field) {
+      if (field.type === "info") {
+        const infoBox = document.createElement("div");
+        infoBox.className = "info-box";
+        infoBox.textContent = field.label || "";
+        return infoBox;
+      }
+
+      const wrapper = document.createElement("div");
+      const label = document.createElement("label");
+      label.textContent = field.label || "";
+
+      let input;
+      if (field.type === "textarea") {
+        input = document.createElement("textarea");
+      } else {
+        input = document.createElement("input");
+        input.type = field.type === "number" ? "number" : "text";
+      }
+
+      input.name = field.id;
+      wrapper.append(label, input);
+      return wrapper;
+    }
+
+    async function loadForm() {
+      const code = new URLSearchParams(window.location.search).get("code");
+
+      if (!code) {
+        showError("Chybný odkaz", `<div class="error-box">Chybí QR kód v odkazu.</div>`);
         return;
       }
 
@@ -16,7 +78,8 @@
       if (codeData.active === false) {
         showError(
           codeData.title || "QR formulář",
-          `<div class="error-box">Tento QR kód není aktuálně aktivní.</div><div class="muted">V případě potřeby kontaktujte obsluhu / provozovatele.</div>`
+          `<div class="error-box">Tento QR kód není aktuálně aktivní.</div>
+           <div class="muted">V případě potřeby kontaktujte obsluhu / provozovatele.</div>`
         );
         return;
       }
@@ -43,6 +106,7 @@
       titleEl.textContent = versionData.title || codeData.title || "QR formulář";
 
       const schema = Array.isArray(versionData.schema) ? versionData.schema : [];
+
       if (!schema.length) {
         showError(titleEl.textContent, `<div class="error-box">Tento QR kód nemá nastavený obsah.</div>`);
         return;
@@ -69,7 +133,7 @@
         const answers = Object.fromEntries(
           schema
             .filter(field => field.type !== "info")
-            .map(field => [field.id, formEl.querySelector(`[name="${escapeHtml(field.id)}"]`)?.value || ""])
+            .map(field => [field.id, formEl.querySelector(`[name="${field.id}"]`)?.value || ""])
         );
 
         const { error: insertError } = await client.from("responses").insert([{
