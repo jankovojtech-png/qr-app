@@ -254,10 +254,41 @@
       box-shadow:var(--shadow);
     }
 
+    .versions-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+
     .versions-title{
       font-weight:bold;
-      margin-bottom:14px;
       font-size:20px;
+    }
+
+    .filter-buttons{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .filter-btn{
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:9px 12px;
+      border-radius:10px;
+      font-size:13px;
+      font-weight:700;
+      cursor:pointer;
+    }
+
+    .filter-btn.active{
+      background:var(--dark);
+      color:#fff;
+      border-color:var(--dark);
     }
 
     .versions-grid{
@@ -271,11 +302,22 @@
       border:1px solid #e5e7eb;
       border-radius:12px;
       padding:14px;
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+
+    .version-card:hover{
+      border-color:#cbd5e1;
     }
 
     .version-card.active{
       border-color:#93c5fd;
       background:#eff6ff;
+    }
+
+    .version-card.filtered{
+      outline:2px solid var(--dark);
+      outline-offset:0;
     }
 
     .version-title{
@@ -431,7 +473,13 @@
     <div class="box" id="status">Ověřuji přihlášení...</div>
 
     <div id="versionsSection" class="versions-box" style="display:none;">
-      <div class="versions-title">Verze tohoto QR</div>
+      <div class="versions-head">
+        <div class="versions-title">Verze tohoto QR</div>
+        <div class="filter-buttons" id="filterButtons">
+          <button class="filter-btn active" type="button" data-filter-mode="all">Všechny verze</button>
+          <button class="filter-btn" type="button" data-filter-mode="active">Jen aktivní verze</button>
+        </div>
+      </div>
       <div id="versionsGrid" class="versions-grid"></div>
     </div>
 
@@ -462,6 +510,7 @@
 
     let latestLoadedRows = [];
     let currentUser = null;
+    let currentVersionFilter = { mode: "all", versionId: null };
 
     function setStatus(message, type = "") {
       const status = document.getElementById("status");
@@ -574,13 +623,36 @@
         exportBtn.addEventListener("click", () => {
           const params = new URLSearchParams(window.location.search);
           const code = params.get("code");
-          const filename = code
-            ? `odpovedi-${code}.csv`
-            : "odpovedi-vsechna-qr.csv";
+          let filename = code ? `odpovedi-${code}.csv` : "odpovedi-vsechna-qr.csv";
+
+          if (code && currentVersionFilter.mode === "version" && currentVersionFilter.versionId) {
+            filename = `odpovedi-${code}-verze.csv`;
+          } else if (code && currentVersionFilter.mode === "active") {
+            filename = `odpovedi-${code}-aktivni-verze.csv`;
+          }
 
           downloadCsv(filename, latestLoadedRows);
         });
       }
+    }
+
+    function updateFilterButtonsUI() {
+      document.querySelectorAll("[data-filter-mode]").forEach((btn) => {
+        const mode = btn.getAttribute("data-filter-mode");
+        const isActive = currentVersionFilter.mode === mode && mode !== "version";
+        btn.classList.toggle("active", isActive);
+      });
+    }
+
+    function updateVersionCardsUI() {
+      document.querySelectorAll(".version-card").forEach((card) => {
+        const versionId = card.getAttribute("data-version-id");
+        const isFilteredVersion =
+          currentVersionFilter.mode === "version" &&
+          currentVersionFilter.versionId === versionId;
+
+        card.classList.toggle("filtered", isFilteredVersion);
+      });
     }
 
     async function activateVersion(versionId, codeId) {
@@ -633,6 +705,8 @@
         if (codeUpdateError) {
           throw new Error("Verze byla aktivována, ale nepodařilo se propsat title/schema do codes: " + codeUpdateError.message);
         }
+
+        currentVersionFilter = { mode: "active", versionId: null };
 
         setStatus(`Aktivována verze ${versionData.version_number}.`, "success");
         await loadAdminData(currentUser);
@@ -757,12 +831,120 @@
           } else {
             (versionsData || []).forEach(version => {
               versionMap[version.id] = version;
-
               if (version.is_active && !activeVersionMapByCodeId[version.code_id]) {
                 activeVersionMapByCodeId[version.code_id] = version;
               }
             });
           }
+        }
+
+        if (selectedCode && versionsForSelectedCode.length > 0) {
+          versionsSection.style.display = "block";
+
+          const activeVersionForCode = versionsForSelectedCode.find(v => v.is_active) || null;
+
+          if (
+            currentVersionFilter.mode === "active" &&
+            !activeVersionForCode
+          ) {
+            currentVersionFilter = { mode: "all", versionId: null };
+          }
+
+          if (
+            currentVersionFilter.mode === "version" &&
+            currentVersionFilter.versionId &&
+            !versionsForSelectedCode.some(v => v.id === currentVersionFilter.versionId)
+          ) {
+            currentVersionFilter = { mode: "all", versionId: null };
+          }
+
+          updateFilterButtonsUI();
+
+          const responsesForCountsQuery = await client
+            .from("responses")
+            .select("id, code_version_id")
+            .eq("code_id", selectedCode);
+
+          const responsesForCounts = responsesForCountsQuery.data || [];
+          const versionCounts = {};
+          responsesForCounts.forEach(r => {
+            const key = r.code_version_id || "unknown";
+            versionCounts[key] = (versionCounts[key] || 0) + 1;
+          });
+
+          versionsForSelectedCode.forEach(version => {
+            const card = document.createElement("div");
+            card.className = "version-card" + (version.is_active ? " active" : "");
+            card.setAttribute("data-version-id", version.id);
+
+            const canActivate = !version.is_active;
+            const isFilteredVersion =
+              currentVersionFilter.mode === "version" &&
+              currentVersionFilter.versionId === version.id;
+
+            if (isFilteredVersion) {
+              card.classList.add("filtered");
+            }
+
+            card.innerHTML = `
+              <div class="badge ${version.is_active ? "active" : "inactive"}">
+                ${version.is_active ? "Aktivní verze" : "Historická verze"}
+              </div>
+              <div class="version-title">
+                Verze ${escapeHtml(version.version_number)}${version.title ? " – " + escapeHtml(version.title) : ""}
+              </div>
+              <div class="version-meta"><strong>Odpovědí:</strong> ${versionCounts[version.id] || 0}</div>
+              <div class="version-meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(version.created_at))}</div>
+              <div class="version-actions">
+                <button class="btn light small" type="button" data-filter-version="${escapeHtml(version.id)}">
+                  Zobrazit odpovědi této verze
+                </button>
+                ${canActivate
+                  ? `<button class="btn warning small" type="button" data-activate-version="${escapeHtml(version.id)}" data-activate-code="${escapeHtml(version.code_id)}">Aktivovat tuto verzi</button>`
+                  : `<button class="btn light small" type="button" disabled>Tato verze je aktivní</button>`
+                }
+              </div>
+            `;
+
+            versionsGrid.appendChild(card);
+          });
+
+          const filterButtons = document.getElementById("filterButtons");
+          filterButtons.querySelectorAll("[data-filter-mode]").forEach((btn) => {
+            btn.onclick = async () => {
+              const mode = btn.getAttribute("data-filter-mode");
+              currentVersionFilter = { mode, versionId: null };
+              await loadAdminData(currentUser);
+            };
+          });
+
+          versionsGrid.querySelectorAll("[data-filter-version]").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const versionId = btn.getAttribute("data-filter-version");
+              currentVersionFilter = { mode: "version", versionId };
+              await loadAdminData(currentUser);
+            });
+          });
+
+          versionsGrid.querySelectorAll("[data-activate-version]").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const versionId = btn.getAttribute("data-activate-version");
+              const codeId = btn.getAttribute("data-activate-code");
+              btn.disabled = true;
+              await activateVersion(versionId, codeId);
+            });
+          });
+
+          versionsGrid.querySelectorAll(".version-card").forEach((card) => {
+            card.addEventListener("click", async (e) => {
+              if (e.target.closest("button")) return;
+              const versionId = card.getAttribute("data-version-id");
+              currentVersionFilter = { mode: "version", versionId };
+              await loadAdminData(currentUser);
+            });
+          });
         }
 
         let responsesQuery = client
@@ -772,6 +954,15 @@
 
         if (selectedCode) {
           responsesQuery = responsesQuery.eq("code_id", selectedCode);
+
+          if (currentVersionFilter.mode === "active") {
+            const activeVersion = versionsForSelectedCode.find(v => v.is_active);
+            if (activeVersion) {
+              responsesQuery = responsesQuery.eq("code_version_id", activeVersion.id);
+            }
+          } else if (currentVersionFilter.mode === "version" && currentVersionFilter.versionId) {
+            responsesQuery = responsesQuery.eq("code_version_id", currentVersionFilter.versionId);
+          }
         } else {
           responsesQuery = responsesQuery.in("code_id", myCodeIds);
         }
@@ -784,69 +975,47 @@
           return;
         }
 
-        if (selectedCode && versionsForSelectedCode.length > 0) {
-          versionsSection.style.display = "block";
-
-          const versionCounts = {};
-          (data || []).forEach(r => {
-            const key = r.code_version_id || "unknown";
-            versionCounts[key] = (versionCounts[key] || 0) + 1;
-          });
-
-          versionsForSelectedCode.forEach(version => {
-            const card = document.createElement("div");
-            card.className = "version-card" + (version.is_active ? " active" : "");
-
-            const canActivate = !version.is_active;
-
-            card.innerHTML = `
-              <div class="badge ${version.is_active ? "active" : "inactive"}">
-                ${version.is_active ? "Aktivní verze" : "Historická verze"}
-              </div>
-              <div class="version-title">
-                Verze ${escapeHtml(version.version_number)}${version.title ? " – " + escapeHtml(version.title) : ""}
-              </div>
-              <div class="version-meta"><strong>Odpovědí:</strong> ${versionCounts[version.id] || 0}</div>
-              <div class="version-meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(version.created_at))}</div>
-              <div class="version-actions">
-                ${canActivate
-                  ? `<button class="btn warning small" type="button" data-activate-version="${escapeHtml(version.id)}" data-activate-code="${escapeHtml(version.code_id)}">Aktivovat tuto verzi</button>`
-                  : `<button class="btn light small" type="button" disabled>Tato verze je aktivní</button>`
-                }
-              </div>
-            `;
-
-            versionsGrid.appendChild(card);
-          });
-
-          versionsGrid.querySelectorAll("[data-activate-version]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              const versionId = btn.getAttribute("data-activate-version");
-              const codeId = btn.getAttribute("data-activate-code");
-              btn.disabled = true;
-              await activateVersion(versionId, codeId);
-            });
-          });
-        }
-
         if (!data || data.length === 0) {
-          setStatus(
-            selectedCode
-              ? "Pro tento QR zatím nejsou žádné odpovědi."
-              : "Zatím nejsou žádné odpovědi k vašim QR kódům."
-          );
+          let emptyMessage = "Žádné odpovědi.";
+
+          if (selectedCode) {
+            if (currentVersionFilter.mode === "active") {
+              emptyMessage = "Pro aktivní verzi tohoto QR zatím nejsou žádné odpovědi.";
+              setStatus(emptyMessage);
+            } else if (currentVersionFilter.mode === "version") {
+              emptyMessage = "Pro tuto verzi zatím nejsou žádné odpovědi.";
+              setStatus(emptyMessage);
+            } else {
+              emptyMessage = "Pro tento QR zatím nejsou žádné odpovědi.";
+              setStatus(emptyMessage);
+            }
+          } else {
+            emptyMessage = "Zatím nejsou žádné odpovědi k vašim QR kódům.";
+            setStatus(emptyMessage);
+          }
+
           totalCountEl.textContent = "0";
           avgRatingEl.textContent = "0";
           codeCountEl.textContent = selectedCode ? "1" : String(myCodeIds.length);
           emptyTable.style.display = "block";
+          emptyTable.textContent = emptyMessage;
           return;
         }
 
-        setStatus(
-          selectedCode
-            ? "Načteno odpovědí pro QR " + (codeInfoMap[selectedCode]?.title || selectedCode) + ": " + data.length
-            : "Načteno odpovědí: " + data.length
-        );
+        let statusText = "";
+        if (selectedCode) {
+          if (currentVersionFilter.mode === "active") {
+            statusText = "Načteno odpovědí pro aktivní verzi QR " + (codeInfoMap[selectedCode]?.title || selectedCode) + ": " + data.length;
+          } else if (currentVersionFilter.mode === "version") {
+            const selectedVersion = versionsForSelectedCode.find(v => v.id === currentVersionFilter.versionId);
+            statusText = "Načteno odpovědí pro verzi " + (selectedVersion ? selectedVersion.version_number : "?") + " QR " + (codeInfoMap[selectedCode]?.title || selectedCode) + ": " + data.length;
+          } else {
+            statusText = "Načteno odpovědí pro QR " + (codeInfoMap[selectedCode]?.title || selectedCode) + ": " + data.length;
+          }
+        } else {
+          statusText = "Načteno odpovědí: " + data.length;
+        }
+        setStatus(statusText);
 
         totalCountEl.textContent = data.length;
 
@@ -913,6 +1082,9 @@
         } else {
           avgRatingEl.textContent = "0";
         }
+
+        updateFilterButtonsUI();
+        updateVersionCardsUI();
 
       } catch (err) {
         setStatus("Neočekávaná chyba: " + err.message, "error");
