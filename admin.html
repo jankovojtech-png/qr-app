@@ -1,51 +1,115 @@
-<script>
-const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
-const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin – odpovědi</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body{
+      font-family: Arial, sans-serif;
+      background:#f4f6f8;
+      padding:40px;
+      margin:0;
+    }
+    h1{
+      margin-bottom:20px;
+    }
+    table{
+      border-collapse:collapse;
+      width:100%;
+      background:white;
+    }
+    th,td{
+      padding:10px;
+      border-bottom:1px solid #ddd;
+      text-align:left;
+      vertical-align:top;
+    }
+    th{
+      background:#f0f0f0;
+    }
+    tr:hover{
+      background:#fafafa;
+    }
+    .box{
+      background:white;
+      padding:16px;
+      margin-bottom:20px;
+      border-radius:8px;
+    }
+  </style>
+</head>
+<body>
 
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <h1>Odpovědi z formulářů</h1>
 
-async function load() {
-  const tbody = document.querySelector("tbody");
-  tbody.innerHTML = "";
+  <div class="box" id="status">Načítám data...</div>
 
-  const { data, error } = await client
-    .from("responses")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Supabase error:", error);
-    tbody.innerHTML = `
+  <table>
+    <thead>
       <tr>
-        <td colspan="5">Chyba načtení: ${error.message}</td>
+        <th>QR kód</th>
+        <th>Jméno</th>
+        <th>Hodnocení</th>
+        <th>Poznámka</th>
+        <th>Čas</th>
       </tr>
-    `;
-    return;
-  }
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
 
-  if (!data || data.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="5">Zatím žádné odpovědi</td>
-      </tr>
-    `;
-    return;
-  }
+  <script>
+    // SEM ZKOPÍRUJ PŘESNĚ STEJNÉ HODNOTY JAKO MÁŠ VE FUNKČNÍM index.html
+    const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
 
-  data.forEach((r) => {
-    const answers = r.answers || {};
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${r.code_id || ""}</td>
-      <td>${answers.name || ""}</td>
-      <td>${answers.rating || ""}</td>
-      <td>${answers.note || ""}</td>
-      <td>${r.created_at || ""}</td>
-    `;
-    tbody.appendChild(row);
-  });
-}
+    async function load() {
+      const status = document.getElementById("status");
+      const tbody = document.getElementById("tbody");
 
-load();
-</script>
+      try {
+        const { data, error } = await client
+          .from("responses")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          status.textContent = "Chyba načtení: " + error.message;
+          console.error(error);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          status.textContent = "Zatím žádné odpovědi.";
+          return;
+        }
+
+        status.textContent = "Načteno odpovědí: " + data.length;
+
+        data.forEach((r) => {
+          const answers = r.answers || {};
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${r.code_id || ""}</td>
+            <td>${answers.name || ""}</td>
+            <td>${answers.rating || ""}</td>
+            <td>${answers.note || ""}</td>
+            <td>${r.created_at || ""}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (err) {
+        status.textContent = "Neočekávaná chyba: " + err.message;
+        console.error(err);
+      }
+    }
+
+    load();
+  </script>
+
+</body>
+</html>
