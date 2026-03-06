@@ -13,7 +13,7 @@
       margin:0;
     }
     h1{
-      margin-bottom:20px;
+      margin:0;
     }
     .topbar{
       display:flex;
@@ -23,6 +23,35 @@
       margin-bottom:20px;
       flex-wrap:wrap;
     }
+    .topbar-left{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .nav-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .btn{
+      display:inline-block;
+      padding:10px 14px;
+      border:none;
+      border-radius:6px;
+      background:#2d7ef7;
+      color:white;
+      text-decoration:none;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .btn.secondary{
+      background:#111827;
+    }
+    .btn.light{
+      background:#e5e7eb;
+      color:#111827;
+    }
     .userbox{
       background:white;
       padding:12px 16px;
@@ -30,18 +59,7 @@
       display:flex;
       align-items:center;
       gap:12px;
-    }
-    .logout-btn{
-      background:#111827;
-      color:white;
-      border:none;
-      border-radius:6px;
-      padding:10px 14px;
-      cursor:pointer;
-      font-size:14px;
-    }
-    .logout-btn:hover{
-      opacity:0.92;
+      flex-wrap:wrap;
     }
     .stats{
       display:grid;
@@ -97,14 +115,21 @@
     }
   </style>
 </head>
-<body>
+<body style="display:none;">
 
   <div class="topbar">
-    <h1>Odpovědi z formulářů</h1>
+    <div class="topbar-left">
+      <h1 id="pageTitle">Odpovědi z formulářů</h1>
+
+      <div class="nav-actions">
+        <a class="btn light" href="/my-qr.html">Moje QR</a>
+        <a class="btn" href="/create-qr.html">Vytvořit QR</a>
+      </div>
+    </div>
 
     <div class="userbox">
       <span id="userEmail">Načítám uživatele...</span>
-      <button id="logoutBtn" class="logout-btn">Odhlásit se</button>
+      <button id="logoutBtn" class="btn secondary">Odhlásit se</button>
     </div>
   </div>
 
@@ -153,6 +178,16 @@
       return d.toLocaleString("cs-CZ");
     }
 
+    function escapeHtml(value) {
+      if (value === null || value === undefined) return "";
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     async function requireAuth() {
       const { data, error } = await client.auth.getUser();
 
@@ -171,6 +206,7 @@
       const avgRatingEl = document.getElementById("avgRating");
       const codeCountEl = document.getElementById("codeCount");
       const userEmailEl = document.getElementById("userEmail");
+      const pageTitle = document.getElementById("pageTitle");
 
       userEmailEl.textContent = user.email ? "Přihlášen: " + user.email : "Přihlášený uživatel";
       tbody.innerHTML = "";
@@ -178,10 +214,63 @@
       try {
         status.textContent = "Načítám data...";
 
-        const { data, error } = await client
+        const params = new URLSearchParams(window.location.search);
+        const selectedCode = params.get("code");
+
+        const { data: myCodes, error: myCodesError } = await client
+          .from("codes")
+          .select("id, title")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (myCodesError) {
+          status.textContent = "Chyba načtení vašich QR kódů: " + myCodesError.message;
+          console.error(myCodesError);
+          return;
+        }
+
+        if (!myCodes || myCodes.length === 0) {
+          pageTitle.textContent = "Odpovědi z formulářů";
+          status.innerHTML = 'Zatím nemáte žádný QR kód. <a href="/create-qr.html">Vytvořit první QR</a>';
+          totalCountEl.textContent = "0";
+          avgRatingEl.textContent = "0";
+          codeCountEl.textContent = "0";
+          return;
+        }
+
+        const myCodeIds = myCodes.map(code => code.id);
+        const codeTitleMap = {};
+        myCodes.forEach(code => {
+          codeTitleMap[code.id] = code.title || code.id;
+        });
+
+        if (selectedCode) {
+          if (!myCodeIds.includes(selectedCode)) {
+            pageTitle.textContent = "Detail QR";
+            status.textContent = "Tento QR kód nepatří přihlášenému uživateli nebo neexistuje.";
+            totalCountEl.textContent = "0";
+            avgRatingEl.textContent = "0";
+            codeCountEl.textContent = "0";
+            return;
+          }
+
+          pageTitle.textContent = "Odpovědi pro QR: " + (codeTitleMap[selectedCode] || selectedCode);
+        } else {
+          pageTitle.textContent = "Odpovědi z formulářů";
+        }
+
+        let responsesQuery = client
           .from("responses")
           .select("*")
           .order("created_at", { ascending: false });
+
+        if (selectedCode) {
+          responsesQuery = responsesQuery.eq("code_id", selectedCode);
+        } else {
+          responsesQuery = responsesQuery.in("code_id", myCodeIds);
+        }
+
+        const { data, error } = await responsesQuery;
 
         if (error) {
           status.textContent = "Chyba načtení: " + error.message;
@@ -190,14 +279,19 @@
         }
 
         if (!data || data.length === 0) {
-          status.textContent = "Zatím žádné odpovědi.";
+          status.textContent = selectedCode
+            ? "Pro tento QR zatím nejsou žádné odpovědi."
+            : "Zatím nejsou žádné odpovědi k vašim QR kódům.";
           totalCountEl.textContent = "0";
           avgRatingEl.textContent = "0";
-          codeCountEl.textContent = "0";
+          codeCountEl.textContent = selectedCode ? "1" : String(myCodeIds.length);
           return;
         }
 
-        status.textContent = "Načteno odpovědí: " + data.length;
+        status.textContent = selectedCode
+          ? "Načteno odpovědí pro QR " + selectedCode + ": " + data.length
+          : "Načteno odpovědí: " + data.length;
+
         totalCountEl.textContent = data.length;
 
         const uniqueCodes = new Set();
@@ -214,16 +308,16 @@
 
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td>${r.code_id || ""}</td>
-            <td>${answers.name || ""}</td>
-            <td>${answers.rating || ""}</td>
-            <td>${answers.note || ""}</td>
-            <td>${formatDate(r.created_at)}</td>
+            <td>${escapeHtml(r.code_id || "")}</td>
+            <td>${escapeHtml(answers.name || answers.answer || "")}</td>
+            <td>${escapeHtml(answers.rating || "")}</td>
+            <td>${escapeHtml(answers.note || answers.answer || answers.info || "")}</td>
+            <td>${escapeHtml(formatDate(r.created_at))}</td>
           `;
           tbody.appendChild(row);
         });
 
-        codeCountEl.textContent = uniqueCodes.size;
+        codeCountEl.textContent = selectedCode ? "1" : String(uniqueCodes.size);
 
         if (ratings.length > 0) {
           const sum = ratings.reduce((a, b) => a + b, 0);
@@ -242,6 +336,8 @@
     async function initPage() {
       const user = await requireAuth();
       if (!user) return;
+
+      document.body.style.display = "block";
 
       console.log("Přihlášený user:", user);
       console.log("User ID:", user.id);
