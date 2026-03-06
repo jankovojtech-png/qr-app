@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moje QR</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+  <style>
+    body{
+      font-family:Arial,sans-serif;
+      background:#f4f6f8;
+      margin:0;
+      padding:30px;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:24px;
+    }
+
+    h1{
+      margin:0;
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .btn{
+      display:inline-block;
+      padding:10px 14px;
+      border:none;
+      border-radius:6px;
+      background:#2d7ef7;
+      color:white;
+      text-decoration:none;
+      cursor:pointer;
+      font-size:14px;
+    }
+
+    .btn.secondary{
+      background:#111827;
+    }
+
+    .btn.light{
+      background:#e5e7eb;
+      color:#111827;
+    }
+
+    .status{
+      background:white;
+      padding:14px 16px;
+      border-radius:8px;
+      margin-bottom:20px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+      gap:18px;
+    }
+
+    .card{
+      background:white;
+      border-radius:10px;
+      padding:18px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.06);
+    }
+
+    .card h2{
+      margin-top:0;
+      margin-bottom:10px;
+      font-size:20px;
+    }
+
+    .meta{
+      font-size:14px;
+      color:#555;
+      margin-bottom:8px;
+      word-break:break-word;
+    }
+
+    .meta strong{
+      color:#111;
+    }
+
+    .qr-wrap{
+      text-align:center;
+      margin:18px 0;
+    }
+
+    .link{
+      word-break:break-all;
+      font-size:13px;
+      color:#444;
+      background:#f9fafb;
+      padding:10px;
+      border-radius:6px;
+      margin-bottom:14px;
+    }
+
+    .card-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+
+    .empty{
+      background:white;
+      padding:24px;
+      border-radius:10px;
+    }
+
+    @media (max-width: 768px){
+      body{
+        padding:18px;
+      }
+    }
+  </style>
+</head>
+<body style="display:none;">
+
+  <div class="topbar">
+    <h1>Moje QR kódy</h1>
+
+    <div class="actions">
+      <a class="btn light" href="/admin.html">← Zpět do adminu</a>
+      <a class="btn" href="/create-qr.html">+ Vytvořit nový QR</a>
+      <button id="logoutBtn" class="btn secondary">Odhlásit se</button>
+    </div>
+  </div>
+
+  <div id="status" class="status">Ověřuji přihlášení...</div>
+
+  <div id="list" class="grid"></div>
+
+  <script>
+    const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let currentUser = null;
+
+    function formatDate(value) {
+      if (!value) return "";
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return value;
+      return d.toLocaleString("cs-CZ");
+    }
+
+    async function requireAuth() {
+      const { data, error } = await client.auth.getUser();
+
+      if (error || !data?.user) {
+        window.location.href = "/login.html";
+        return null;
+      }
+
+      return data.user;
+    }
+
+    async function loadMyQr() {
+      const status = document.getElementById("status");
+      const list = document.getElementById("list");
+
+      status.textContent = "Načítám vaše QR kódy...";
+      list.innerHTML = "";
+
+      try {
+        const { data: codes, error: codesError } = await client
+          .from("codes")
+          .select("*")
+          .eq("owner_id", currentUser.id)
+          .order("created_at", { ascending: false });
+
+        if (codesError) {
+          status.textContent = "Chyba načtení QR kódů: " + codesError.message;
+          console.error(codesError);
+          return;
+        }
+
+        if (!codes || codes.length === 0) {
+          status.innerHTML = "Zatím nemáte žádný QR kód.";
+          list.innerHTML = `
+            <div class="empty">
+              Ještě nebyl vytvořen žádný QR kód.<br><br>
+              <a class="btn" href="/create-qr.html">Vytvořit první QR</a>
+            </div>
+          `;
+          return;
+        }
+
+        status.textContent = "Načteno QR kódů: " + codes.length;
+
+        const codeIds = codes.map(c => c.id);
+
+        let responseCounts = {};
+
+        if (codeIds.length > 0) {
+          const { data: responses, error: responsesError } = await client
+            .from("responses")
+            .select("code_id")
+            .in("code_id", codeIds);
+
+          if (responsesError) {
+            console.error(responsesError);
+          } else {
+            responses.forEach(r => {
+              responseCounts[r.code_id] = (responseCounts[r.code_id] || 0) + 1;
+            });
+          }
+        }
+
+        for (const code of codes) {
+          const publicUrl = window.location.origin + "/index.html?code=" + encodeURIComponent(code.id);
+          const responseCount = responseCounts[code.id] || 0;
+
+          const card = document.createElement("div");
+          card.className = "card";
+
+          card.innerHTML = `
+            <h2>${code.title || "Bez názvu"}</h2>
+
+            <div class="meta"><strong>Kód:</strong> ${code.id}</div>
+            <div class="meta"><strong>Vytvořeno:</strong> ${formatDate(code.created_at)}</div>
+            <div class="meta"><strong>Počet odpovědí:</strong> ${responseCount}</div>
+
+            <div class="link">
+              <strong>Veřejný odkaz:</strong><br>
+              ${publicUrl}
+            </div>
+
+            <div class="qr-wrap" id="qr-${code.id}"></div>
+
+            <div class="card-actions">
+              <a class="btn" href="/admin.html?code=${encodeURIComponent(code.id)}">Zobrazit odpovědi</a>
+              <a class="btn light" href="${publicUrl}" target="_blank">Otevřít formulář</a>
+            </div>
+          `;
+
+          list.appendChild(card);
+
+          const qrTarget = document.getElementById("qr-" + code.id);
+          const canvas = document.createElement("canvas");
+
+          await QRCode.toCanvas(canvas, publicUrl, {
+            width: 180,
+            margin: 2
+          });
+
+          qrTarget.appendChild(canvas);
+        }
+      } catch (err) {
+        status.textContent = "Neočekávaná chyba: " + err.message;
+        console.error(err);
+      }
+    }
+
+    async function initPage() {
+      currentUser = await requireAuth();
+      if (!currentUser) return;
+
+      document.body.style.display = "block";
+
+      await loadMyQr();
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await client.auth.signOut();
+      window.location.href = "/login.html";
+    });
+
+    initPage();
+  </script>
+</body>
+</html>
