@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upravit QR</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body{
+      font-family:Arial,sans-serif;
+      background:#f4f6f8;
+      display:flex;
+      justify-content:center;
+      padding:40px;
+      margin:0;
+    }
+    .box{
+      background:white;
+      padding:30px;
+      border-radius:10px;
+      width:520px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    }
+    h1{
+      margin-top:0;
+      margin-bottom:18px;
+    }
+    .top-links{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:20px;
+    }
+    .btn-link{
+      display:inline-block;
+      padding:10px 14px;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:14px;
+      background:#e5e7eb;
+      color:#111827;
+    }
+    label{
+      display:block;
+      margin-bottom:6px;
+      font-weight:bold;
+    }
+    input, textarea, select{
+      width:100%;
+      padding:10px;
+      margin-bottom:14px;
+      border:1px solid #ccc;
+      border-radius:6px;
+      box-sizing:border-box;
+    }
+    button{
+      width:100%;
+      padding:12px;
+      border:none;
+      border-radius:6px;
+      background:#2d7ef7;
+      color:white;
+      font-size:16px;
+      cursor:pointer;
+    }
+    button:disabled{
+      opacity:0.7;
+      cursor:not-allowed;
+    }
+    .small{
+      font-size:13px;
+      color:#666;
+      margin-top:-8px;
+      margin-bottom:12px;
+    }
+    .meta{
+      background:#f9fafb;
+      padding:12px;
+      border-radius:8px;
+      margin-bottom:18px;
+      font-size:14px;
+      color:#444;
+      word-break:break-word;
+    }
+    #msg{
+      margin-top:14px;
+      min-height:20px;
+    }
+  </style>
+</head>
+<body style="display:none;">
+
+  <div class="box">
+    <h1>Upravit QR</h1>
+
+    <div class="top-links">
+      <a class="btn-link" href="/my-qr.html">← Zpět na Moje QR</a>
+      <a class="btn-link" id="responsesLink" href="/admin.html">Zobrazit odpovědi</a>
+    </div>
+
+    <div class="meta" id="metaBox">Načítám QR...</div>
+
+    <label for="title">Název QR</label>
+    <input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742" />
+
+    <label for="mode">Typ obsahu</label>
+    <select id="mode">
+      <option value="rating">Hodnocení + poznámka</option>
+      <option value="question">Jedna otázka + odpověď</option>
+      <option value="info">Pouze informace</option>
+    </select>
+
+    <label for="question">Otázka / text</label>
+    <textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
+    <div class="small">U typu „info“ se tento text zobrazí jako informace.</div>
+
+    <button id="saveBtn">Uložit změny</button>
+
+    <div id="msg"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let currentUser = null;
+    let currentCodeId = null;
+
+    async function requireAuth() {
+      const { data, error } = await client.auth.getUser();
+
+      if (error || !data?.user) {
+        window.location.href = "/login.html";
+        return null;
+      }
+
+      return data.user;
+    }
+
+    function buildSchema(mode, questionText) {
+      if (mode === "rating") {
+        return [
+          { id: "name", type: "text", label: "Jméno" },
+          { id: "rating", type: "number", label: questionText || "Hodnocení 1-5" },
+          { id: "note", type: "textarea", label: "Poznámka" }
+        ];
+      }
+
+      if (mode === "question") {
+        return [
+          { id: "answer", type: "textarea", label: questionText || "Vaše odpověď" }
+        ];
+      }
+
+      if (mode === "info") {
+        return [
+          { id: "info", type: "info", label: questionText || "Informace" }
+        ];
+      }
+
+      return [];
+    }
+
+    function detectModeFromSchema(schema) {
+      if (!Array.isArray(schema) || schema.length === 0) return "rating";
+
+      if (schema.some(item => item.type === "info")) {
+        return "info";
+      }
+
+      if (schema.length === 1 && schema[0].id === "answer") {
+        return "question";
+      }
+
+      return "rating";
+    }
+
+    function getQuestionFromSchema(schema, mode) {
+      if (!Array.isArray(schema) || schema.length === 0) return "";
+
+      if (mode === "rating") {
+        const ratingField = schema.find(item => item.id === "rating");
+        return ratingField?.label && ratingField.label !== "Hodnocení 1-5"
+          ? ratingField.label
+          : "";
+      }
+
+      if (mode === "question") {
+        const answerField = schema.find(item => item.id === "answer");
+        return answerField?.label && answerField.label !== "Vaše odpověď"
+          ? answerField.label
+          : "";
+      }
+
+      if (mode === "info") {
+        const infoField = schema.find(item => item.id === "info");
+        return infoField?.label && infoField.label !== "Informace"
+          ? infoField.label
+          : "";
+      }
+
+      return "";
+    }
+
+    async function loadQrDetail() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const metaBox = document.getElementById("metaBox");
+      const msg = document.getElementById("msg");
+      const responsesLink = document.getElementById("responsesLink");
+
+      if (!code) {
+        metaBox.textContent = "Chybí parametr code v URL.";
+        document.getElementById("saveBtn").disabled = true;
+        return;
+      }
+
+      currentCodeId = code;
+      responsesLink.href = "/admin.html?code=" + encodeURIComponent(code);
+
+      const { data, error } = await client
+        .from("codes")
+        .select("*")
+        .eq("id", code)
+        .eq("owner_id", currentUser.id)
+        .single();
+
+      if (error || !data) {
+        metaBox.textContent = "QR nebyl nalezen nebo nepatří přihlášenému uživateli.";
+        document.getElementById("saveBtn").disabled = true;
+        console.error(error);
+        return;
+      }
+
+      const mode = detectModeFromSchema(data.schema || []);
+      const questionText = getQuestionFromSchema(data.schema || [], mode);
+
+      document.getElementById("title").value = data.title || "";
+      document.getElementById("mode").value = mode;
+      document.getElementById("question").value = questionText;
+
+      metaBox.innerHTML =
+        "<strong>Kód:</strong> " + data.id + "<br>" +
+        "<strong>Veřejný odkaz:</strong> " +
+        window.location.origin + "/index.html?code=" + encodeURIComponent(data.id);
+
+      msg.textContent = "";
+    }
+
+    async function saveQr() {
+      const msg = document.getElementById("msg");
+      const saveBtn = document.getElementById("saveBtn");
+
+      msg.textContent = "";
+
+      if (!currentCodeId) {
+        msg.textContent = "Chybí ID QR kódu.";
+        return;
+      }
+
+      const title = document.getElementById("title").value.trim();
+      const mode = document.getElementById("mode").value;
+      const question = document.getElementById("question").value.trim();
+
+      if (!title) {
+        msg.textContent = "Vyplň název QR.";
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Ukládám...";
+
+      try {
+        const schema = buildSchema(mode, question);
+
+        const { error } = await client
+          .from("codes")
+          .update({
+            title: title,
+            schema: schema
+          })
+          .eq("id", currentCodeId)
+          .eq("owner_id", currentUser.id);
+
+        if (error) {
+          msg.textContent = "Chyba při ukládání: " + error.message;
+          console.error(error);
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Uložit změny";
+          return;
+        }
+
+        msg.textContent = "Změny byly uloženy. Vytištěný QR kód zůstává stejný, změnil se jen jeho obsah.";
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Uložit změny";
+      } catch (err) {
+        msg.textContent = "Neočekávaná chyba: " + err.message;
+        console.error(err);
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Uložit změny";
+      }
+    }
+
+    async function initPage() {
+      currentUser = await requireAuth();
+      if (!currentUser) return;
+
+      document.body.style.display = "block";
+      await loadQrDetail();
+    }
+
+    document.getElementById("saveBtn").addEventListener("click", saveQr);
+
+    initPage();
+  </script>
+</body>
+</html>
