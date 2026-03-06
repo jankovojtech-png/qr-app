@@ -25,6 +25,13 @@
       margin-bottom:24px;
     }
 
+    .topbar-left{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
     h1{
       margin:0;
     }
@@ -56,6 +63,16 @@
       color:#111827;
     }
 
+    .btn.warning{
+      background:#b45309;
+      color:white;
+    }
+
+    .btn.danger{
+      background:#b91c1c;
+      color:white;
+    }
+
     .status{
       background:white;
       padding:14px 16px;
@@ -65,7 +82,7 @@
 
     .grid{
       display:grid;
-      grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));
       gap:18px;
     }
 
@@ -74,6 +91,12 @@
       border-radius:10px;
       padding:18px;
       box-shadow:0 4px 20px rgba(0,0,0,0.06);
+      border:2px solid transparent;
+    }
+
+    .card.inactive{
+      border-color:#f59e0b;
+      opacity:0.95;
     }
 
     .card h2{
@@ -91,6 +114,25 @@
 
     .meta strong{
       color:#111;
+    }
+
+    .badge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:bold;
+      margin-bottom:10px;
+    }
+
+    .badge.active{
+      background:#dcfce7;
+      color:#166534;
+    }
+
+    .badge.inactive{
+      background:#fef3c7;
+      color:#92400e;
     }
 
     .qr-wrap{
@@ -131,11 +173,15 @@
 <body style="display:none;">
 
   <div class="topbar">
-    <h1>Moje QR kódy</h1>
+    <div class="topbar-left">
+      <h1>Moje QR kódy</h1>
+      <div class="actions">
+        <a class="btn light" href="/admin.html">Dashboard</a>
+        <a class="btn" href="/create-qr.html">+ Vytvořit QR</a>
+      </div>
+    </div>
 
     <div class="actions">
-      <a class="btn light" href="/admin.html">← Zpět do adminu</a>
-      <a class="btn" href="/create-qr.html">+ Vytvořit nový QR</a>
       <button id="logoutBtn" class="btn secondary">Odhlásit se</button>
     </div>
   </div>
@@ -178,6 +224,49 @@
       }
 
       return data.user;
+    }
+
+    async function toggleQrActive(codeId, currentActive) {
+      const actionText = currentActive ? "deaktivovat" : "aktivovat";
+      const confirmed = confirm(`Opravdu chcete ${actionText} tento QR kód?`);
+
+      if (!confirmed) return;
+
+      const { error } = await client
+        .from("codes")
+        .update({ active: !currentActive })
+        .eq("id", codeId)
+        .eq("owner_id", currentUser.id);
+
+      if (error) {
+        alert("Chyba při změně stavu QR: " + error.message);
+        console.error(error);
+        return;
+      }
+
+      await loadMyQr();
+    }
+
+    async function deleteQr(codeId) {
+      const confirmed = confirm(
+        "Opravdu chcete smazat tento QR kód?\n\nPozor: pokud existují odpovědi navázané na tento QR, mazání může selhat podle nastavení databáze."
+      );
+
+      if (!confirmed) return;
+
+      const { error } = await client
+        .from("codes")
+        .delete()
+        .eq("id", codeId)
+        .eq("owner_id", currentUser.id);
+
+      if (error) {
+        alert("Chyba při mazání QR: " + error.message);
+        console.error(error);
+        return;
+      }
+
+      await loadMyQr();
     }
 
     async function loadMyQr() {
@@ -237,9 +326,13 @@
           const safeCodeId = encodeURIComponent(code.id);
 
           const card = document.createElement("div");
-          card.className = "card";
+          card.className = "card" + (code.active === false ? " inactive" : "");
 
           card.innerHTML = `
+            <div class="badge ${code.active === false ? "inactive" : "active"}">
+              ${code.active === false ? "Neaktivní" : "Aktivní"}
+            </div>
+
             <h2>${escapeHtml(code.title || "Bez názvu")}</h2>
 
             <div class="meta"><strong>Kód:</strong> ${escapeHtml(code.id)}</div>
@@ -254,9 +347,15 @@
             <div class="qr-wrap" id="qr-${safeCodeId}"></div>
 
             <div class="card-actions">
-              <a class="btn" href="/admin.html?code=${safeCodeId}">Zobrazit odpovědi</a>
+              <a class="btn" href="/admin.html?code=${safeCodeId}">Odpovědi</a>
               <a class="btn light" href="/edit-qr.html?code=${safeCodeId}">Upravit QR</a>
-              <a class="btn light" href="${publicUrl}" target="_blank">Otevřít formulář</a>
+              <a class="btn light" href="${publicUrl}" target="_blank">Otevřít</a>
+              <button class="btn warning" data-action="toggle" data-id="${escapeHtml(code.id)}" data-active="${code.active === false ? "false" : "true"}">
+                ${code.active === false ? "Aktivovat" : "Deaktivovat"}
+              </button>
+              <button class="btn danger" data-action="delete" data-id="${escapeHtml(code.id)}">
+                Smazat QR
+              </button>
             </div>
           `;
 
@@ -272,6 +371,22 @@
 
           qrTarget.appendChild(canvas);
         }
+
+        list.querySelectorAll('[data-action="toggle"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const codeId = btn.getAttribute("data-id");
+            const currentActive = btn.getAttribute("data-active") === "true";
+            await toggleQrActive(codeId, currentActive);
+          });
+        });
+
+        list.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const codeId = btn.getAttribute("data-id");
+            await deleteQr(codeId);
+          });
+        });
+
       } catch (err) {
         status.textContent = "Neočekávaná chyba: " + err.message;
         console.error(err);
