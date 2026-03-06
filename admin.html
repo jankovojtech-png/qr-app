@@ -1,102 +1,51 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Admin – odpovědi</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
-font-family:Arial;
-background:#f4f6f8;
-padding:40px;
-}
-
-h1{
-margin-bottom:20px;
-}
-
-table{
-border-collapse:collapse;
-width:100%;
-background:white;
-}
-
-th,td{
-padding:10px;
-border-bottom:1px solid #ddd;
-text-align:left;
-}
-
-th{
-background:#f0f0f0;
-}
-
-tr:hover{
-background:#fafafa;
-}
-</style>
-
-</head>
-
-<body>
-
-<h1>Odpovědi z formulářů</h1>
-
-<table id="table">
-<thead>
-<tr>
-<th>QR kód</th>
-<th>Jméno</th>
-<th>Hodnocení</th>
-<th>Poznámka</th>
-<th>Čas</th>
-</tr>
-</thead>
-
-<tbody></tbody>
-</table>
-
 <script>
+const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
 
-const SUPABASE_URL="https://lpawgvdzrpboxzctfzxd.supabase.co";
-const SUPABASE_KEY="sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const client=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+async function load() {
+  const tbody = document.querySelector("tbody");
+  tbody.innerHTML = "";
 
-async function load(){
+  const { data, error } = await client
+    .from("responses")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-const {data}=await client
-.from("responses")
-.select("*")
-.order("created_at",{ascending:false});
+  if (error) {
+    console.error("Supabase error:", error);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5">Chyba načtení: ${error.message}</td>
+      </tr>
+    `;
+    return;
+  }
 
-const tbody=document.querySelector("tbody");
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5">Zatím žádné odpovědi</td>
+      </tr>
+    `;
+    return;
+  }
 
-data.forEach(r=>{
+  data.forEach((r) => {
+    const answers = r.answers || {};
 
-const answers=r.answers;
-
-const row=document.createElement("tr");
-
-row.innerHTML=`
-<td>${r.code_id}</td>
-<td>${answers.name||""}</td>
-<td>${answers.rating||""}</td>
-<td>${answers.note||""}</td>
-<td>${r.created_at||""}</td>
-`;
-
-tbody.appendChild(row);
-
-});
-
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${r.code_id || ""}</td>
+      <td>${answers.name || ""}</td>
+      <td>${answers.rating || ""}</td>
+      <td>${answers.note || ""}</td>
+      <td>${r.created_at || ""}</td>
+    `;
+    tbody.appendChild(row);
+  });
 }
 
 load();
-
 </script>
-
-</body>
-</html>
