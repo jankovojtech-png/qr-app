@@ -87,6 +87,57 @@
       margin-bottom:20px;
       border-radius:8px;
     }
+    .versions-box{
+      background:white;
+      padding:16px;
+      margin-bottom:20px;
+      border-radius:8px;
+    }
+    .versions-title{
+      font-weight:bold;
+      margin-bottom:12px;
+      font-size:18px;
+    }
+    .versions-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+      gap:12px;
+    }
+    .version-card{
+      background:#f9fafb;
+      border:1px solid #e5e7eb;
+      border-radius:8px;
+      padding:14px;
+    }
+    .version-card.active{
+      border-color:#93c5fd;
+      background:#eff6ff;
+    }
+    .version-title{
+      font-weight:bold;
+      margin-bottom:8px;
+    }
+    .version-meta{
+      font-size:14px;
+      color:#555;
+      margin-bottom:6px;
+    }
+    .badge{
+      display:inline-block;
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:bold;
+      margin-bottom:8px;
+    }
+    .badge.active{
+      background:#dbeafe;
+      color:#1d4ed8;
+    }
+    .badge.inactive{
+      background:#e5e7eb;
+      color:#374151;
+    }
     table{
       border-collapse:collapse;
       width:100%;
@@ -152,13 +203,19 @@
 
   <div class="box" id="status">Ověřuji přihlášení...</div>
 
+  <div id="versionsSection" class="versions-box" style="display:none;">
+    <div class="versions-title">Verze tohoto QR</div>
+    <div id="versionsGrid" class="versions-grid"></div>
+  </div>
+
   <table>
     <thead>
       <tr>
         <th>QR kód</th>
-        <th>Jméno</th>
+        <th>Verze</th>
+        <th>Jméno / odpověď</th>
         <th>Hodnocení</th>
-        <th>Poznámka</th>
+        <th>Poznámka / obsah</th>
         <th>Čas</th>
       </tr>
     </thead>
@@ -207,9 +264,13 @@
       const codeCountEl = document.getElementById("codeCount");
       const userEmailEl = document.getElementById("userEmail");
       const pageTitle = document.getElementById("pageTitle");
+      const versionsSection = document.getElementById("versionsSection");
+      const versionsGrid = document.getElementById("versionsGrid");
 
       userEmailEl.textContent = user.email ? "Přihlášen: " + user.email : "Přihlášený uživatel";
       tbody.innerHTML = "";
+      versionsGrid.innerHTML = "";
+      versionsSection.style.display = "none";
 
       try {
         status.textContent = "Načítám data...";
@@ -259,6 +320,40 @@
           pageTitle.textContent = "Odpovědi z formulářů";
         }
 
+        let versionMap = {};
+        let versionsForSelectedCode = [];
+
+        if (selectedCode) {
+          const { data: versionsData, error: versionsError } = await client
+            .from("code_versions")
+            .select("*")
+            .eq("code_id", selectedCode)
+            .order("version_number", { ascending: false });
+
+          if (versionsError) {
+            console.error(versionsError);
+          } else {
+            versionsForSelectedCode = versionsData || [];
+
+            versionsForSelectedCode.forEach(version => {
+              versionMap[version.id] = version;
+            });
+          }
+        } else {
+          const { data: versionsData, error: versionsError } = await client
+            .from("code_versions")
+            .select("id, code_id, version_number, title, is_active")
+            .in("code_id", myCodeIds);
+
+          if (versionsError) {
+            console.error(versionsError);
+          } else {
+            (versionsData || []).forEach(version => {
+              versionMap[version.id] = version;
+            });
+          }
+        }
+
         let responsesQuery = client
           .from("responses")
           .select("*")
@@ -276,6 +371,34 @@
           status.textContent = "Chyba načtení: " + error.message;
           console.error(error);
           return;
+        }
+
+        if (selectedCode && versionsForSelectedCode.length > 0) {
+          versionsSection.style.display = "block";
+
+          const versionCounts = {};
+          (data || []).forEach(r => {
+            const key = r.code_version_id || "unknown";
+            versionCounts[key] = (versionCounts[key] || 0) + 1;
+          });
+
+          versionsForSelectedCode.forEach(version => {
+            const card = document.createElement("div");
+            card.className = "version-card" + (version.is_active ? " active" : "");
+
+            card.innerHTML = `
+              <div class="badge ${version.is_active ? "active" : "inactive"}">
+                ${version.is_active ? "Aktivní verze" : "Historická verze"}
+              </div>
+              <div class="version-title">
+                Verze ${escapeHtml(version.version_number)}${version.title ? " – " + escapeHtml(version.title) : ""}
+              </div>
+              <div class="version-meta"><strong>Odpovědí:</strong> ${versionCounts[version.id] || 0}</div>
+              <div class="version-meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(version.created_at))}</div>
+            `;
+
+            versionsGrid.appendChild(card);
+          });
         }
 
         if (!data || data.length === 0) {
@@ -306,9 +429,18 @@
             ratings.push(ratingNumber);
           }
 
+          const versionInfo = r.code_version_id && versionMap[r.code_version_id]
+            ? versionMap[r.code_version_id]
+            : null;
+
+          const versionLabel = versionInfo
+            ? "v" + versionInfo.version_number + (versionInfo.is_active ? " (aktivní)" : "")
+            : (r.code_version_id ? "Neznámá verze" : "Původní data");
+
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td>${escapeHtml(r.code_id || "")}</td>
+            <td>${escapeHtml(codeTitleMap[r.code_id] || r.code_id || "")}</td>
+            <td>${escapeHtml(versionLabel)}</td>
             <td>${escapeHtml(answers.name || answers.answer || "")}</td>
             <td>${escapeHtml(answers.rating || "")}</td>
             <td>${escapeHtml(answers.note || answers.answer || answers.info || "")}</td>
@@ -338,9 +470,6 @@
       if (!user) return;
 
       document.body.style.display = "block";
-
-      console.log("Přihlášený user:", user);
-      console.log("User ID:", user.id);
 
       await loadAdminData(user);
     }
