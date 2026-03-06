@@ -1,285 +1,788 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Vytvořit QR</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vytvořit QR | QR App</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --primary: #111827;
+      --primary-inverse: #ffffff;
+      --success: #065f46;
+      --success-bg: #d1fae5;
+      --danger: #991b1b;
+      --danger-bg: #fee2e2;
+      --warning: #92400e;
+      --warning-bg: #fef3c7;
+      --input-bg: #ffffff;
+      --shadow: 0 10px 30px rgba(0,0,0,.06);
+      --radius: 16px;
+    }
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    * { box-sizing: border-box; }
 
-<style>
-body{
-  font-family:Arial,sans-serif;
-  background:#f4f6f8;
-  display:flex;
-  justify-content:center;
-  padding:40px;
-  margin:0;
-}
+    body {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
 
-.box{
-  background:white;
-  padding:30px;
-  border-radius:10px;
-  width:500px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.08);
-}
+    a { color: inherit; text-decoration: none; }
 
-h1{
-  margin-top:0;
-}
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
 
-label{
-  display:block;
-  margin-bottom:6px;
-  font-weight:bold;
-}
+    .topbar-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
 
-input,textarea,select{
-  width:100%;
-  padding:10px;
-  margin-bottom:14px;
-  border:1px solid #ccc;
-  border-radius:6px;
-  box-sizing:border-box;
-}
+    .brand {
+      font-weight: 700;
+      font-size: 18px;
+    }
 
-button{
-  width:100%;
-  padding:12px;
-  border:none;
-  border-radius:6px;
-  background:#2d7ef7;
-  color:white;
-  font-size:16px;
-  cursor:pointer;
-}
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
 
-#msg{
-  margin-top:14px;
-}
+    .nav a,
+    .nav button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
 
-#qrBox{
-  margin-top:24px;
-  text-align:center;
-}
+    .nav a.active {
+      background: var(--primary);
+      color: var(--primary-inverse);
+      border-color: var(--primary);
+    }
 
-#linkBox{
-  margin-top:16px;
-  word-break:break-all;
-  font-size:14px;
-}
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
 
-.small{
-  font-size:13px;
-  color:#666;
-  margin-top:-8px;
-  margin-bottom:12px;
-}
-</style>
+    .grid {
+      display: grid;
+      grid-template-columns: 1.4fr .9fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+      line-height: 1.15;
+    }
+
+    .lead {
+      margin: 0 0 24px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .section-title {
+      margin: 0 0 16px;
+      font-size: 18px;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 15px;
+    }
+
+    textarea {
+      min-height: 260px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height: 1.5;
+    }
+
+    .help {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .inline-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    @media (max-width: 640px) {
+      .inline-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-inverse);
+      border-color: var(--primary);
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+
+    .status {
+      display: none;
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.show { display: block; }
+    .status.success {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+    .status.error {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+    .status.warning {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .meta-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .meta-item {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fafafa;
+    }
+
+    .meta-item strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .meta-item span,
+    .meta-item code {
+      color: var(--muted);
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    .result-box {
+      margin-top: 20px;
+      padding: 18px;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      background: #fcfcfc;
+      display: none;
+    }
+
+    .result-box.show { display: block; }
+
+    .result-box a {
+      color: #2563eb;
+      word-break: break-all;
+    }
+
+    .qr-preview {
+      margin-top: 18px;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    pre.example {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+  </style>
 </head>
-
 <body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">QR App Admin</div>
+      <nav class="nav">
+        <a href="admin.html">Odpovědi</a>
+        <a href="my-qr.html">Moje QR</a>
+        <a href="create-qr.html" class="active">Vytvořit QR</a>
+        <a href="generator.html">Generátor</a>
+        <button id="logoutBtn" type="button">Odhlásit</button>
+      </nav>
+    </div>
+  </header>
 
-<div class="box">
+  <main class="container">
+    <div class="grid">
+      <section class="card">
+        <h1>Vytvořit nové QR</h1>
+        <p class="lead">
+          Tento formulář vytvoří nový záznam v <strong>codes</strong> a zároveň automaticky založí
+          první obsahovou verzi v <strong>code_versions</strong> jako verzi 1.
+        </p>
 
-<h1>Vytvořit nový QR</h1>
+        <div id="status" class="status"></div>
 
-<label>Název QR</label>
-<input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742" />
+        <form id="createForm">
+          <div class="field">
+            <label for="title">Název QR</label>
+            <input
+              id="title"
+              name="title"
+              type="text"
+              placeholder="Např. Kontrola úklidu – recepce"
+              required
+            />
+            <div class="help">Tento název se uloží do <code>codes.title</code> i do první verze v <code>code_versions.title</code>.</div>
+          </div>
 
-<label>Typ obsahu</label>
-<select id="mode">
-<option value="rating">Hodnocení + poznámka</option>
-<option value="question">Jedna otázka + odpověď</option>
-<option value="info">Pouze informace</option>
-</select>
+          <div class="field">
+            <label for="codeId">ID / kód QR</label>
+            <div class="inline-row">
+              <input
+                id="codeId"
+                name="codeId"
+                type="text"
+                placeholder="Např. uklid-recepce-01"
+              />
+              <button type="button" class="btn" id="generateIdBtn">Vygenerovat</button>
+            </div>
+            <div class="help">
+              Nech prázdné a aplikace vygeneruje bezpečné ID automaticky.
+              Fyzický QR kód pak bude směřovat na <code>index.html?code=...</code>.
+            </div>
+          </div>
 
-<label>Otázka / text</label>
-<textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
+          <div class="field">
+            <label for="schema">Schema formuláře (JSON)</label>
+            <textarea id="schema" name="schema" spellcheck="false"></textarea>
+            <div class="help">
+              Ukládá se jako první verze obsahu. Při budoucích úpravách se má vytvářet nová verze, ne přepis původní.
+            </div>
+          </div>
 
-<div class="small">
-U typu „info“ se tento text zobrazí jako informace.
-</div>
+          <div class="actions">
+            <button id="submitBtn" type="submit" class="btn btn-primary">Vytvořit QR</button>
+            <button id="fillExampleBtn" type="button" class="btn">Vložit ukázkové schema</button>
+          </div>
+        </form>
 
-<button id="createBtn">Vytvořit QR</button>
+        <div id="resultBox" class="result-box">
+          <div><strong>QR bylo úspěšně vytvořeno.</strong></div>
+          <div class="small" style="margin-top:10px;">
+            Veřejný odkaz:<br />
+            <a id="publicLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+          </div>
+          <div class="small" style="margin-top:10px;">
+            Admin detail:<br />
+            <a id="adminLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+          </div>
+          <div class="qr-preview">
+            <div id="qrcode"></div>
+          </div>
+        </div>
+      </section>
 
-<div id="msg"></div>
-<div id="linkBox"></div>
-<div id="qrBox"></div>
+      <aside class="card">
+        <h2 class="section-title">Co se uloží</h2>
+        <div class="meta-list">
+          <div class="meta-item">
+            <strong>1) Tabulka codes</strong>
+            <span>
+              Vznikne hlavní QR záznam: <code>id</code>, <code>title</code>, <code>owner_id</code>,
+              <code>active = true</code> a kvůli kompatibilitě i <code>schema</code>.
+            </span>
+          </div>
 
-</div>
+          <div class="meta-item">
+            <strong>2) Tabulka code_versions</strong>
+            <span>
+              Okamžitě vznikne první aktivní verze:
+              <code>version_number = 1</code>, stejné <code>title</code>, stejné <code>schema</code>,
+              <code>is_active = true</code>.
+            </span>
+          </div>
 
-<script>
+          <div class="meta-item">
+            <strong>3) Konzistence verzování</strong>
+            <span>
+              Veřejný formulář pak čte aktivní verzi z <code>code_versions</code>.
+              Staré odpovědi zůstávají navázané na staré verze.
+            </span>
+          </div>
+        </div>
 
-const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
-const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
-
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let currentUser = null;
-
-async function requireAuth(){
-
-  const {data,error} = await client.auth.getUser();
-
-  if(error || !data?.user){
-    window.location.href="/login.html";
-    return null;
+        <div style="margin-top:24px;">
+          <h2 class="section-title">Ukázkové schema</h2>
+          <pre class="example" id="schemaExample">[
+  {
+    "type": "text",
+    "name": "jmeno",
+    "label": "Jméno",
+    "required": true
+  },
+  {
+    "type": "textarea",
+    "name": "poznamka",
+    "label": "Poznámka",
+    "required": false
+  },
+  {
+    "type": "radio",
+    "name": "stav",
+    "label": "Stav",
+    "required": true,
+    "options": ["OK", "Závada"]
   }
+]</pre>
+        </div>
 
-  return data.user;
-}
+        <div style="margin-top:24px;" class="small muted">
+          Poznámka: pokud chceš později schema změnit, fyzický QR kód zůstává stejný.
+          Mění se jen obsah přes novou verzi.
+        </div>
+      </aside>
+    </div>
+  </main>
 
-function slugify(text){
-  return text
-  .toLowerCase()
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g,"")
-  .replace(/[^a-z0-9]+/g,"-")
-  .replace(/^-+|-+$/g,"")
-  .slice(0,30);
-}
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
-function generateCodeId(title){
+  <script>
+    /*
+      Možnosti konfigurace:
+      1) Pokud už máš globálně window.SUPABASE_URL a window.SUPABASE_ANON_KEY, použijí se automaticky.
+      2) Jinak doplň hodnoty níže.
+    */
+    const SUPABASE_URL = window.SUPABASE_URL || "DOPLN_SUPABASE_URL";
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "DOPLN_SUPABASE_ANON_KEY";
 
-  const base = slugify(title) || "qr";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const random =
-  Math.random()
-  .toString(36)
-  .slice(2,7)
-  .toUpperCase();
+    const statusEl = document.getElementById("status");
+    const createForm = document.getElementById("createForm");
+    const titleInput = document.getElementById("title");
+    const codeIdInput = document.getElementById("codeId");
+    const schemaInput = document.getElementById("schema");
+    const submitBtn = document.getElementById("submitBtn");
+    const generateIdBtn = document.getElementById("generateIdBtn");
+    const fillExampleBtn = document.getElementById("fillExampleBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
 
-  return base + "-" + random;
-}
+    const resultBox = document.getElementById("resultBox");
+    const publicLinkEl = document.getElementById("publicLink");
+    const adminLinkEl = document.getElementById("adminLink");
+    const qrCodeContainer = document.getElementById("qrcode");
 
-function buildSchema(mode,questionText){
-
-  if(mode==="rating"){
-    return[
-      {id:"name",type:"text",label:"Jméno"},
-      {id:"rating",type:"number",label:questionText || "Hodnocení 1-5"},
-      {id:"note",type:"textarea",label:"Poznámka"}
+    const DEFAULT_SCHEMA = [
+      {
+        type: "text",
+        name: "jmeno",
+        label: "Jméno",
+        required: true
+      },
+      {
+        type: "textarea",
+        name: "poznamka",
+        label: "Poznámka",
+        required: false
+      },
+      {
+        type: "radio",
+        name: "stav",
+        label: "Stav",
+        required: true,
+        options: ["OK", "Závada"]
+      }
     ];
-  }
 
-  if(mode==="question"){
-    return[
-      {id:"answer",type:"textarea",label:questionText || "Vaše odpověď"}
-    ];
-  }
+    function showStatus(message, type = "warning") {
+      statusEl.className = `status show ${type}`;
+      statusEl.textContent = message;
+    }
 
-  if(mode==="info"){
-    return[
-      {id:"info",type:"info",label:questionText || "Informace"}
-    ];
-  }
+    function hideStatus() {
+      statusEl.className = "status";
+      statusEl.textContent = "";
+    }
 
-  return[];
-}
+    function slugify(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .replace(/-{2,}/g, "-");
+    }
 
-document.getElementById("createBtn")
-.addEventListener("click",async function(){
+    function generateRandomSuffix(length = 6) {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let out = "";
+      crypto.getRandomValues(new Uint32Array(length)).forEach((n) => {
+        out += chars[n % chars.length];
+      });
+      return out;
+    }
 
-const msg=document.getElementById("msg");
-const qrBox=document.getElementById("qrBox");
-const linkBox=document.getElementById("linkBox");
+    function generateCodeIdFromTitle(title) {
+      const base = slugify(title) || "qr";
+      return `${base}-${generateRandomSuffix(6)}`;
+    }
 
-msg.textContent="";
-qrBox.innerHTML="";
-linkBox.innerHTML="";
+    function isValidCodeId(value) {
+      return /^[a-z0-9][a-z0-9-]{1,120}[a-z0-9]$/.test(value);
+    }
 
-try{
+    function getBaseUrl() {
+      return window.location.origin;
+    }
 
-if(!currentUser){
-msg.textContent="Nejste přihlášen.";
-return;
-}
+    function getPublicUrl(codeId) {
+      return `${getBaseUrl()}/index.html?code=${encodeURIComponent(codeId)}`;
+    }
 
-const title=document
-.getElementById("title")
-.value.trim();
+    function getAdminDetailUrl(codeId) {
+      return `${getBaseUrl()}/admin.html?code=${encodeURIComponent(codeId)}`;
+    }
 
-const mode=document
-.getElementById("mode")
-.value;
+    function clearQrPreview() {
+      qrCodeContainer.innerHTML = "";
+    }
 
-const question=document
-.getElementById("question")
-.value.trim();
+    function renderQr(url) {
+      clearQrPreview();
+      new QRCode(qrCodeContainer, {
+        text: url,
+        width: 220,
+        height: 220
+      });
+    }
 
-if(!title){
-msg.textContent="Vyplň název QR.";
-return;
-}
+    function setLoading(isLoading) {
+      submitBtn.disabled = isLoading;
+      generateIdBtn.disabled = isLoading;
+      fillExampleBtn.disabled = isLoading;
+      submitBtn.textContent = isLoading ? "Ukládám..." : "Vytvořit QR";
+    }
 
-const codeId=generateCodeId(title);
+    async function requireAuth() {
+      const { data, error } = await supabaseClient.auth.getSession();
 
-const schema=buildSchema(mode,question);
+      if (error) {
+        console.error(error);
+        showStatus("Nepodařilo se ověřit přihlášení.", "error");
+        setTimeout(() => {
+          window.location.href = "login.html";
+        }, 1200);
+        return null;
+      }
 
-const {error} = await client
-.from("codes")
-.insert([{
-id:codeId,
-title:title,
-schema:schema,
-owner_id:currentUser.id
-}]);
+      const session = data?.session;
+      if (!session?.user) {
+        window.location.href = "login.html";
+        return null;
+      }
 
-if(error){
-msg.textContent="Chyba při ukládání: "+error.message;
-console.error(error);
-return;
-}
+      return session.user;
+    }
 
-const publicUrl =
-window.location.origin +
-"/index.html?code=" +
-encodeURIComponent(codeId);
+    async function logout() {
+      await supabaseClient.auth.signOut();
+      window.location.href = "login.html";
+    }
 
-msg.textContent="QR bylo vytvořeno.";
+    async function codeIdExists(codeId) {
+      const { data, error } = await supabaseClient
+        .from("codes")
+        .select("id")
+        .eq("id", codeId)
+        .maybeSingle();
 
-linkBox.innerHTML=
-"<strong>Veřejný odkaz:</strong><br>"+publicUrl;
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
 
-const canvas=document.createElement("canvas");
+      return !!data;
+    }
 
-await QRCode.toCanvas(
-canvas,
-publicUrl,
-{
-width:260,
-margin:2
-}
-);
+    async function generateUniqueCodeId(title) {
+      for (let i = 0; i < 10; i++) {
+        const candidate = generateCodeIdFromTitle(title);
+        const exists = await codeIdExists(candidate);
+        if (!exists) return candidate;
+      }
+      throw new Error("Nepodařilo se vygenerovat unikátní ID QR.");
+    }
 
-qrBox.appendChild(canvas);
+    function parseSchemaOrThrow(raw) {
+      let parsed;
 
-}catch(err){
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw new Error("Schema není validní JSON.");
+      }
 
-msg.textContent="Neočekávaná chyba: "+err.message;
+      if (!Array.isArray(parsed)) {
+        throw new Error("Schema musí být JSON pole.");
+      }
 
-console.error(err);
+      return parsed;
+    }
 
-}
+    async function createQrWithVersion({ title, codeId, schema, userId }) {
+      // 1) vytvoření záznamu v codes
+      const { error: codeInsertError } = await supabaseClient
+        .from("codes")
+        .insert({
+          id: codeId,
+          title: title,
+          schema: schema,
+          owner_id: userId,
+          active: true
+        });
 
-});
+      if (codeInsertError) {
+        throw new Error(`Nepodařilo se vytvořit QR v tabulce codes: ${codeInsertError.message}`);
+      }
 
-async function initPage(){
+      // 2) založení první verze
+      const { error: versionInsertError } = await supabaseClient
+        .from("code_versions")
+        .insert({
+          code_id: codeId,
+          version_number: 1,
+          title: title,
+          schema: schema,
+          is_active: true
+        });
 
-currentUser = await requireAuth();
+      if (versionInsertError) {
+        // rollback: pokus o smazání právě vytvořeného codes záznamu
+        const { error: rollbackError } = await supabaseClient
+          .from("codes")
+          .delete()
+          .eq("id", codeId)
+          .eq("owner_id", userId);
 
-if(!currentUser) return;
+        if (rollbackError) {
+          console.error("Rollback codes selhal:", rollbackError);
+        }
 
-console.log("User:",currentUser);
+        throw new Error(`QR bylo založeno, ale nepodařilo se vytvořit verzi 1 v code_versions: ${versionInsertError.message}`);
+      }
+    }
 
-}
+    async function init() {
+      const user = await requireAuth();
+      if (!user) return;
 
-initPage();
+      if (!schemaInput.value.trim()) {
+        schemaInput.value = JSON.stringify(DEFAULT_SCHEMA, null, 2);
+      }
 
-</script>
+      generateIdBtn.addEventListener("click", async () => {
+        try {
+          hideStatus();
+          const title = titleInput.value.trim();
+          const generated = await generateUniqueCodeId(title || "qr");
+          codeIdInput.value = generated;
+        } catch (err) {
+          console.error(err);
+          showStatus(err.message || "Nepodařilo se vygenerovat ID.", "error");
+        }
+      });
 
+      fillExampleBtn.addEventListener("click", () => {
+        schemaInput.value = JSON.stringify(DEFAULT_SCHEMA, null, 2);
+      });
+
+      logoutBtn.addEventListener("click", logout);
+
+      createForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        hideStatus();
+        resultBox.classList.remove("show");
+        clearQrPreview();
+
+        const title = titleInput.value.trim();
+        let codeId = slugify(codeIdInput.value.trim());
+        const rawSchema = schemaInput.value.trim();
+
+        if (!title) {
+          showStatus("Vyplň název QR.", "warning");
+          return;
+        }
+
+        if (!rawSchema) {
+          showStatus("Vyplň schema formuláře.", "warning");
+          return;
+        }
+
+        let schema;
+        try {
+          schema = parseSchemaOrThrow(rawSchema);
+        } catch (err) {
+          showStatus(err.message, "error");
+          return;
+        }
+
+        setLoading(true);
+
+        try {
+          if (!codeId) {
+            codeId = await generateUniqueCodeId(title);
+            codeIdInput.value = codeId;
+          }
+
+          if (!isValidCodeId(codeId)) {
+            throw new Error("ID QR může obsahovat jen malá písmena, čísla a pomlčky a musí mít alespoň 3 znaky.");
+          }
+
+          const exists = await codeIdExists(codeId);
+          if (exists) {
+            throw new Error("Toto ID QR už existuje. Zvol jiné.");
+          }
+
+          await createQrWithVersion({
+            title,
+            codeId,
+            schema,
+            userId: user.id
+          });
+
+          const publicUrl = getPublicUrl(codeId);
+          const adminUrl = getAdminDetailUrl(codeId);
+
+          publicLinkEl.href = publicUrl;
+          publicLinkEl.textContent = publicUrl;
+
+          adminLinkEl.href = adminUrl;
+          adminLinkEl.textContent = adminUrl;
+
+          renderQr(publicUrl);
+          resultBox.classList.add("show");
+
+          showStatus("QR bylo vytvořeno včetně první verze obsahu (version 1).", "success");
+
+        } catch (err) {
+          console.error(err);
+          showStatus(err.message || "Při vytváření QR došlo k chybě.", "error");
+        } finally {
+          setLoading(false);
+        }
+      });
+    }
+
+    init();
+  </script>
 </body>
 </html>
