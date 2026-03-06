@@ -3,138 +3,296 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upravit QR</title>
+  <title>Upravit QR | QR App</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --primary:#2563eb;
+      --primary-dark:#1d4ed8;
+      --dark:#111827;
+      --success:#065f46;
+      --success-bg:#d1fae5;
+      --error:#991b1b;
+      --error-bg:#fee2e2;
+      --info:#1e3a8a;
+      --info-bg:#eff6ff;
+      --shadow:0 10px 30px rgba(0,0,0,.06);
+      --radius:16px;
+    }
+
+    *{
+      box-sizing:border-box;
+    }
+
     body{
-      font-family:Arial,sans-serif;
-      background:#f4f6f8;
-      display:flex;
-      justify-content:center;
-      padding:40px;
       margin:0;
+      font-family:Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      display:none;
     }
-    .box{
-      background:white;
-      padding:30px;
-      border-radius:10px;
-      width:560px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.08);
+
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:rgba(255,255,255,.92);
+      backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--border);
     }
-    h1{
-      margin-top:0;
-      margin-bottom:18px;
+
+    .topbar-inner{
+      max-width:1100px;
+      margin:0 auto;
+      padding:14px 20px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+      flex-wrap:wrap;
     }
-    .top-links{
+
+    .brand{
+      font-weight:700;
+      font-size:18px;
+    }
+
+    .nav{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin-bottom:20px;
+      align-items:center;
     }
+
+    .nav a,
+    .nav button{
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:12px;
+      font-size:14px;
+      text-decoration:none;
+      cursor:pointer;
+    }
+
+    .nav a.active{
+      background:var(--dark);
+      color:#fff;
+      border-color:var(--dark);
+    }
+
+    .container{
+      max-width:900px;
+      margin:0 auto;
+      padding:28px 20px 60px;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:28px;
+    }
+
+    h1{
+      margin:0 0 12px;
+      font-size:30px;
+      line-height:1.15;
+    }
+
+    .lead{
+      margin:0 0 22px;
+      color:var(--muted);
+      line-height:1.6;
+    }
+
+    .notice{
+      background:var(--info-bg);
+      border:1px solid #bfdbfe;
+      color:var(--info);
+      padding:14px 16px;
+      border-radius:12px;
+      margin-bottom:18px;
+      font-size:14px;
+      line-height:1.55;
+    }
+
+    .meta{
+      background:#f9fafb;
+      padding:14px 16px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      margin-bottom:22px;
+      font-size:14px;
+      color:#374151;
+      word-break:break-word;
+      line-height:1.7;
+    }
+
+    .row-links{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+
     .btn-link{
       display:inline-block;
       padding:10px 14px;
-      border-radius:6px;
+      border-radius:10px;
       text-decoration:none;
       font-size:14px;
       background:#e5e7eb;
       color:#111827;
     }
+
     label{
       display:block;
-      margin-bottom:6px;
-      font-weight:bold;
+      margin-bottom:8px;
+      font-weight:700;
+      font-size:14px;
     }
+
     input, textarea, select{
       width:100%;
-      padding:10px;
+      padding:12px 13px;
       margin-bottom:14px;
-      border:1px solid #ccc;
-      border-radius:6px;
+      border:1px solid #d1d5db;
+      border-radius:10px;
       box-sizing:border-box;
+      font-size:15px;
+      background:#fff;
+      color:var(--text);
     }
-    button{
-      width:100%;
-      padding:12px;
-      border:none;
-      border-radius:6px;
-      background:#2d7ef7;
-      color:white;
-      font-size:16px;
-      cursor:pointer;
+
+    textarea{
+      resize:vertical;
+      min-height:120px;
     }
-    button:disabled{
-      opacity:0.7;
-      cursor:not-allowed;
-    }
+
     .small{
       font-size:13px;
-      color:#666;
-      margin-top:-8px;
-      margin-bottom:12px;
+      color:var(--muted);
+      margin-top:-6px;
+      margin-bottom:14px;
+      line-height:1.5;
     }
-    .meta{
-      background:#f9fafb;
-      padding:12px;
-      border-radius:8px;
-      margin-bottom:18px;
-      font-size:14px;
-      color:#444;
-      word-break:break-word;
-      line-height:1.6;
+
+    .actions{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:8px;
     }
-    .notice{
-      background:#eff6ff;
-      border:1px solid #bfdbfe;
-      color:#1e3a8a;
-      padding:12px;
-      border-radius:8px;
-      margin-bottom:18px;
+
+    button.primary{
+      border:none;
+      border-radius:10px;
+      background:var(--primary);
+      color:white;
+      font-size:15px;
+      padding:12px 18px;
+      cursor:pointer;
+      font-weight:700;
+    }
+
+    button.primary:hover{
+      background:var(--primary-dark);
+    }
+
+    button:disabled{
+      opacity:.7;
+      cursor:not-allowed;
+    }
+
+    #msg{
+      margin-top:16px;
+      min-height:24px;
       font-size:14px;
       line-height:1.5;
     }
-    #msg{
-      margin-top:14px;
-      min-height:20px;
+
+    .msg-success{
+      color:var(--success);
+      background:var(--success-bg);
+      border:1px solid #a7f3d0;
+      padding:12px 14px;
+      border-radius:10px;
+    }
+
+    .msg-error{
+      color:var(--error);
+      background:var(--error-bg);
+      border:1px solid #fecaca;
+      padding:12px 14px;
+      border-radius:10px;
     }
   </style>
 </head>
-<body style="display:none;">
+<body>
 
-  <div class="box">
-    <h1>Upravit QR</h1>
-
-    <div class="top-links">
-      <a class="btn-link" href="/my-qr.html">← Zpět na Moje QR</a>
-      <a class="btn-link" id="responsesLink" href="/admin.html">Zobrazit odpovědi</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">QR App Admin</div>
+      <nav class="nav">
+        <a href="/admin.html">Odpovědi</a>
+        <a href="/my-qr.html">Moje QR</a>
+        <a href="/create-qr.html">Vytvořit QR</a>
+        <a href="/edit-qr.html" class="active">Editace</a>
+        <a href="/generator.html">Generátor</a>
+        <button id="logoutBtn" type="button">Odhlásit</button>
+      </nav>
     </div>
+  </header>
 
-    <div class="notice">
-      Při uložení se nevymění samotný QR kód. Vytvoří se nová verze obsahu a další odpovědi se budou ukládat už pod tuto novou verzi.
+  <main class="container">
+    <div class="card">
+      <h1>Upravit QR</h1>
+      <p class="lead">
+        Fyzický QR kód se nemění. Při uložení vznikne nová verze obsahu a další odpovědi se budou ukládat už pod ni.
+      </p>
+
+      <div class="row-links">
+        <a class="btn-link" href="/my-qr.html">← Zpět na Moje QR</a>
+        <a class="btn-link" id="responsesLink" href="/admin.html">Zobrazit odpovědi</a>
+      </div>
+
+      <div class="notice">
+        Pro jedno QR má dávat smysl pouze <strong>jedna aktivní verze</strong>. Starší verze zůstávají v historii, ale nové odpovědi mají vždy padat jen do právě aktivní verze.
+      </div>
+
+      <div class="meta" id="metaBox">Načítám QR...</div>
+
+      <label for="title">Název QR</label>
+      <input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742" />
+
+      <label for="mode">Typ obsahu</label>
+      <select id="mode">
+        <option value="rating">Hodnocení + poznámka</option>
+        <option value="question">Jedna otázka + odpověď</option>
+        <option value="info">Pouze informace</option>
+      </select>
+
+      <label for="question">Otázka / text</label>
+      <textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
+      <div class="small">U typu „info“ se tento text zobrazí jako informace.</div>
+
+      <div class="actions">
+        <button id="saveBtn" class="primary" type="button">Uložit jako novou verzi</button>
+      </div>
+
+      <div id="msg"></div>
     </div>
-
-    <div class="meta" id="metaBox">Načítám QR...</div>
-
-    <label for="title">Název QR</label>
-    <input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742" />
-
-    <label for="mode">Typ obsahu</label>
-    <select id="mode">
-      <option value="rating">Hodnocení + poznámka</option>
-      <option value="question">Jedna otázka + odpověď</option>
-      <option value="info">Pouze informace</option>
-    </select>
-
-    <label for="question">Otázka / text</label>
-    <textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
-    <div class="small">U typu „info“ se tento text zobrazí jako informace.</div>
-
-    <button id="saveBtn">Uložit jako novou verzi</button>
-
-    <div id="msg"></div>
-  </div>
+  </main>
 
   <script>
     const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
@@ -146,6 +304,18 @@
     let currentCodeId = null;
     let currentVersionId = null;
     let currentVersionNumber = 1;
+
+    function showMessage(text, type = "success") {
+      const msg = document.getElementById("msg");
+      msg.className = type === "error" ? "msg-error" : "msg-success";
+      msg.textContent = text;
+    }
+
+    function clearMessage() {
+      const msg = document.getElementById("msg");
+      msg.className = "";
+      msg.textContent = "";
+    }
 
     async function requireAuth() {
       const { data, error } = await client.auth.getUser();
@@ -227,9 +397,10 @@
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
       const metaBox = document.getElementById("metaBox");
-      const msg = document.getElementById("msg");
       const responsesLink = document.getElementById("responsesLink");
       const saveBtn = document.getElementById("saveBtn");
+
+      clearMessage();
 
       if (!code) {
         metaBox.textContent = "Chybí parametr code v URL.";
@@ -256,7 +427,7 @@
 
       const { data: versionData, error: versionError } = await client
         .from("code_versions")
-        .select("*")
+        .select("id, code_id, version_number, title, schema, is_active, created_at")
         .eq("code_id", code)
         .eq("is_active", true)
         .order("version_number", { ascending: false })
@@ -282,22 +453,21 @@
 
       metaBox.innerHTML =
         "<strong>Kód:</strong> " + codeData.id + "<br>" +
+        "<strong>Název:</strong> " + (versionData.title || codeData.title || "—") + "<br>" +
         "<strong>Aktuální verze:</strong> " + currentVersionNumber + "<br>" +
         "<strong>Stav QR:</strong> " + (codeData.active === false ? "Neaktivní" : "Aktivní") + "<br>" +
         "<strong>Veřejný odkaz:</strong> " +
         window.location.origin + "/index.html?code=" + encodeURIComponent(codeData.id);
 
-      msg.textContent = "";
+      saveBtn.disabled = false;
     }
 
     async function saveQr() {
-      const msg = document.getElementById("msg");
       const saveBtn = document.getElementById("saveBtn");
-
-      msg.textContent = "";
+      clearMessage();
 
       if (!currentCodeId || !currentVersionId) {
-        msg.textContent = "Chybí data QR kódu.";
+        showMessage("Chybí data QR kódu.", "error");
         return;
       }
 
@@ -306,7 +476,7 @@
       const question = document.getElementById("question").value.trim();
 
       if (!title) {
-        msg.textContent = "Vyplň název QR.";
+        showMessage("Vyplň název QR.", "error");
         return;
       }
 
@@ -315,20 +485,29 @@
 
       try {
         const schema = buildSchema(mode, question);
-        const newVersionNumber = currentVersionNumber + 1;
+
+        const { data: latestVersion, error: latestVersionError } = await client
+          .from("code_versions")
+          .select("version_number")
+          .eq("code_id", currentCodeId)
+          .order("version_number", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (latestVersionError || !latestVersion) {
+          throw new Error("Nepodařilo se zjistit poslední číslo verze.");
+        }
+
+        const newVersionNumber = (latestVersion.version_number || 0) + 1;
 
         const { error: deactivateError } = await client
           .from("code_versions")
           .update({ is_active: false })
-          .eq("id", currentVersionId)
-          .eq("code_id", currentCodeId);
+          .eq("code_id", currentCodeId)
+          .eq("is_active", true);
 
         if (deactivateError) {
-          msg.textContent = "Chyba při deaktivaci staré verze: " + deactivateError.message;
-          console.error(deactivateError);
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Uložit jako novou verzi";
-          return;
+          throw new Error("Chyba při deaktivaci staré verze: " + deactivateError.message);
         }
 
         const { data: newVersion, error: insertError } = await client
@@ -346,45 +525,46 @@
           .single();
 
         if (insertError) {
-          msg.textContent = "Chyba při vytvoření nové verze: " + insertError.message;
-          console.error(insertError);
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Uložit jako novou verzi";
-          return;
+          throw new Error("Chyba při vytvoření nové verze: " + insertError.message);
         }
 
         const { error: codeUpdateError } = await client
           .from("codes")
           .update({
-            title: title
+            title: title,
+            schema: schema
           })
           .eq("id", currentCodeId)
           .eq("owner_id", currentUser.id);
 
         if (codeUpdateError) {
-          msg.textContent = "Nová verze vznikla, ale nepodařilo se upravit hlavní název QR: " + codeUpdateError.message;
-          console.error(codeUpdateError);
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Uložit jako novou verzi";
+          showMessage("Nová verze vznikla, ale nepodařilo se upravit hlavní název QR: " + codeUpdateError.message, "error");
           currentVersionId = newVersion.id;
           currentVersionNumber = newVersion.version_number;
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Uložit jako novou verzi";
           return;
         }
 
         currentVersionId = newVersion.id;
         currentVersionNumber = newVersion.version_number;
 
-        msg.textContent = "Hotovo. Byla vytvořena nová verze obsahu QR. Vytištěný QR kód zůstává stejný.";
+        showMessage("Hotovo. Byla vytvořena nová verze obsahu QR. Vytištěný QR kód zůstává stejný.");
         saveBtn.disabled = false;
         saveBtn.textContent = "Uložit jako novou verzi";
 
         await loadQrDetail();
       } catch (err) {
-        msg.textContent = "Neočekávaná chyba: " + err.message;
+        showMessage("Neočekávaná chyba: " + err.message, "error");
         console.error(err);
         saveBtn.disabled = false;
         saveBtn.textContent = "Uložit jako novou verzi";
       }
+    }
+
+    async function logout() {
+      await client.auth.signOut();
+      window.location.href = "/login.html";
     }
 
     async function initPage() {
@@ -396,6 +576,7 @@
     }
 
     document.getElementById("saveBtn").addEventListener("click", saveQr);
+    document.getElementById("logoutBtn").addEventListener("click", logout);
 
     initPage();
   </script>
