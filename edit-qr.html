@@ -20,7 +20,7 @@
       background:white;
       padding:30px;
       border-radius:10px;
-      width:520px;
+      width:560px;
       box-shadow:0 4px 20px rgba(0,0,0,0.08);
     }
     h1{
@@ -83,6 +83,17 @@
       font-size:14px;
       color:#444;
       word-break:break-word;
+      line-height:1.6;
+    }
+    .notice{
+      background:#eff6ff;
+      border:1px solid #bfdbfe;
+      color:#1e3a8a;
+      padding:12px;
+      border-radius:8px;
+      margin-bottom:18px;
+      font-size:14px;
+      line-height:1.5;
     }
     #msg{
       margin-top:14px;
@@ -98,6 +109,10 @@
     <div class="top-links">
       <a class="btn-link" href="/my-qr.html">← Zpět na Moje QR</a>
       <a class="btn-link" id="responsesLink" href="/admin.html">Zobrazit odpovědi</a>
+    </div>
+
+    <div class="notice">
+      Při uložení se nevymění samotný QR kód. Vytvoří se nová verze obsahu a další odpovědi se budou ukládat už pod tuto novou verzi.
     </div>
 
     <div class="meta" id="metaBox">Načítám QR...</div>
@@ -116,7 +131,7 @@
     <textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
     <div class="small">U typu „info“ se tento text zobrazí jako informace.</div>
 
-    <button id="saveBtn">Uložit změny</button>
+    <button id="saveBtn">Uložit jako novou verzi</button>
 
     <div id="msg"></div>
   </div>
@@ -129,6 +144,8 @@
 
     let currentUser = null;
     let currentCodeId = null;
+    let currentVersionId = null;
+    let currentVersionNumber = 1;
 
     async function requireAuth() {
       const { data, error } = await client.auth.getUser();
@@ -212,41 +229,63 @@
       const metaBox = document.getElementById("metaBox");
       const msg = document.getElementById("msg");
       const responsesLink = document.getElementById("responsesLink");
+      const saveBtn = document.getElementById("saveBtn");
 
       if (!code) {
         metaBox.textContent = "Chybí parametr code v URL.";
-        document.getElementById("saveBtn").disabled = true;
+        saveBtn.disabled = true;
         return;
       }
 
       currentCodeId = code;
       responsesLink.href = "/admin.html?code=" + encodeURIComponent(code);
 
-      const { data, error } = await client
+      const { data: codeData, error: codeError } = await client
         .from("codes")
-        .select("*")
+        .select("id, title, owner_id, active")
         .eq("id", code)
         .eq("owner_id", currentUser.id)
         .single();
 
-      if (error || !data) {
+      if (codeError || !codeData) {
         metaBox.textContent = "QR nebyl nalezen nebo nepatří přihlášenému uživateli.";
-        document.getElementById("saveBtn").disabled = true;
-        console.error(error);
+        saveBtn.disabled = true;
+        console.error(codeError);
         return;
       }
 
-      const mode = detectModeFromSchema(data.schema || []);
-      const questionText = getQuestionFromSchema(data.schema || [], mode);
+      const { data: versionData, error: versionError } = await client
+        .from("code_versions")
+        .select("*")
+        .eq("code_id", code)
+        .eq("is_active", true)
+        .order("version_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      document.getElementById("title").value = data.title || "";
+      if (versionError || !versionData) {
+        metaBox.textContent = "Nepodařilo se načíst aktivní verzi QR.";
+        saveBtn.disabled = true;
+        console.error(versionError);
+        return;
+      }
+
+      currentVersionId = versionData.id;
+      currentVersionNumber = versionData.version_number || 1;
+
+      const mode = detectModeFromSchema(versionData.schema || []);
+      const questionText = getQuestionFromSchema(versionData.schema || [], mode);
+
+      document.getElementById("title").value = versionData.title || codeData.title || "";
       document.getElementById("mode").value = mode;
       document.getElementById("question").value = questionText;
 
       metaBox.innerHTML =
-        "<strong>Kód:</strong> " + data.id + "<br>" +
+        "<strong>Kód:</strong> " + codeData.id + "<br>" +
+        "<strong>Aktuální verze:</strong> " + currentVersionNumber + "<br>" +
+        "<strong>Stav QR:</strong> " + (codeData.active === false ? "Neaktivní" : "Aktivní") + "<br>" +
         "<strong>Veřejný odkaz:</strong> " +
-        window.location.origin + "/index.html?code=" + encodeURIComponent(data.id);
+        window.location.origin + "/index.html?code=" + encodeURIComponent(codeData.id);
 
       msg.textContent = "";
     }
@@ -257,8 +296,8 @@
 
       msg.textContent = "";
 
-      if (!currentCodeId) {
-        msg.textContent = "Chybí ID QR kódu.";
+      if (!currentCodeId || !currentVersionId) {
+        msg.textContent = "Chybí data QR kódu.";
         return;
       }
 
@@ -272,36 +311,79 @@
       }
 
       saveBtn.disabled = true;
-      saveBtn.textContent = "Ukládám...";
+      saveBtn.textContent = "Ukládám novou verzi...";
 
       try {
         const schema = buildSchema(mode, question);
+        const newVersionNumber = currentVersionNumber + 1;
 
-        const { error } = await client
+        const { error: deactivateError } = await client
+          .from("code_versions")
+          .update({ is_active: false })
+          .eq("id", currentVersionId)
+          .eq("code_id", currentCodeId);
+
+        if (deactivateError) {
+          msg.textContent = "Chyba při deaktivaci staré verze: " + deactivateError.message;
+          console.error(deactivateError);
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Uložit jako novou verzi";
+          return;
+        }
+
+        const { data: newVersion, error: insertError } = await client
+          .from("code_versions")
+          .insert([
+            {
+              code_id: currentCodeId,
+              version_number: newVersionNumber,
+              title: title,
+              schema: schema,
+              is_active: true
+            }
+          ])
+          .select()
+          .single();
+
+        if (insertError) {
+          msg.textContent = "Chyba při vytvoření nové verze: " + insertError.message;
+          console.error(insertError);
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Uložit jako novou verzi";
+          return;
+        }
+
+        const { error: codeUpdateError } = await client
           .from("codes")
           .update({
-            title: title,
-            schema: schema
+            title: title
           })
           .eq("id", currentCodeId)
           .eq("owner_id", currentUser.id);
 
-        if (error) {
-          msg.textContent = "Chyba při ukládání: " + error.message;
-          console.error(error);
+        if (codeUpdateError) {
+          msg.textContent = "Nová verze vznikla, ale nepodařilo se upravit hlavní název QR: " + codeUpdateError.message;
+          console.error(codeUpdateError);
           saveBtn.disabled = false;
-          saveBtn.textContent = "Uložit změny";
+          saveBtn.textContent = "Uložit jako novou verzi";
+          currentVersionId = newVersion.id;
+          currentVersionNumber = newVersion.version_number;
           return;
         }
 
-        msg.textContent = "Změny byly uloženy. Vytištěný QR kód zůstává stejný, změnil se jen jeho obsah.";
+        currentVersionId = newVersion.id;
+        currentVersionNumber = newVersion.version_number;
+
+        msg.textContent = "Hotovo. Byla vytvořena nová verze obsahu QR. Vytištěný QR kód zůstává stejný.";
         saveBtn.disabled = false;
-        saveBtn.textContent = "Uložit změny";
+        saveBtn.textContent = "Uložit jako novou verzi";
+
+        await loadQrDetail();
       } catch (err) {
         msg.textContent = "Neočekávaná chyba: " + err.message;
         console.error(err);
         saveBtn.disabled = false;
-        saveBtn.textContent = "Uložit změny";
+        saveBtn.textContent = "Uložit jako novou verzi";
       }
     }
 
