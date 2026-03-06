@@ -1,128 +1,4 @@
 <!DOCTYPE html>
-<html lang="cs">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR formulář</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <style>
-    body{
-      font-family: Arial, sans-serif;
-      background:#f4f6f8;
-      display:flex;
-      justify-content:center;
-      padding:40px;
-      margin:0;
-    }
-
-    .container{
-      background:white;
-      padding:30px;
-      border-radius:10px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.1);
-      width:400px;
-      max-width:100%;
-      box-sizing:border-box;
-    }
-
-    h1{
-      margin-top:0;
-      margin-bottom:20px;
-    }
-
-    label{
-      display:block;
-      margin-bottom:5px;
-      font-weight:bold;
-    }
-
-    input,textarea{
-      width:100%;
-      padding:10px;
-      margin-bottom:20px;
-      border-radius:6px;
-      border:1px solid #ccc;
-      font-size:14px;
-      box-sizing:border-box;
-    }
-
-    button{
-      background:#2d7ef7;
-      color:white;
-      border:none;
-      padding:12px;
-      border-radius:6px;
-      font-size:16px;
-      cursor:pointer;
-      width:100%;
-    }
-
-    button:hover{
-      background:#1f63c9;
-    }
-
-    .success{
-      color:green;
-      margin-top:15px;
-    }
-
-    .info-box{
-      background:#eff6ff;
-      border:1px solid #bfdbfe;
-      color:#1e3a8a;
-      padding:14px;
-      border-radius:8px;
-      line-height:1.5;
-      margin-bottom:16px;
-    }
-
-    .error-box{
-      background:#fef2f2;
-      border:1px solid #fecaca;
-      color:#991b1b;
-      padding:14px;
-      border-radius:8px;
-      line-height:1.5;
-    }
-
-    .muted{
-      color:#666;
-      font-size:14px;
-      margin-top:10px;
-    }
-  </style>
-</head>
-<body>
-
-  <div class="container">
-    <h1 id="title">QR formulář</h1>
-    <form id="form"></form>
-    <div id="message"></div>
-  </div>
-
-  <script>
-    const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
-
-    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    function showError(titleText, htmlMessage) {
-      document.getElementById("title").innerText = titleText;
-      document.getElementById("form").innerHTML = "";
-      document.getElementById("message").innerHTML = htmlMessage;
-    }
-
-    async function loadForm() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const form = document.getElementById("form");
-      const message = document.getElementById("message");
-      const title = document.getElementById("title");
-
-      if (!code) {
-        showError("Chybný odkaz", `<div class="error-box">Chybí QR kód v odkazu.</div>`);
         return;
       }
 
@@ -133,7 +9,6 @@
         .single();
 
       if (codeError || !codeData) {
-        console.error(codeError);
         showError("QR nenalezen", `<div class="error-box">Tento QR kód neexistuje.</div>`);
         return;
       }
@@ -141,14 +16,7 @@
       if (codeData.active === false) {
         showError(
           codeData.title || "QR formulář",
-          `
-            <div class="error-box">
-              Tento QR kód není aktuálně aktivní.
-            </div>
-            <div class="muted">
-              V případě potřeby kontaktujte obsluhu / provozovatele.
-            </div>
-          `
+          `<div class="error-box">Tento QR kód není aktuálně aktivní.</div><div class="muted">V případě potřeby kontaktujte obsluhu / provozovatele.</div>`
         );
         return;
       }
@@ -163,7 +31,6 @@
         .maybeSingle();
 
       if (versionError) {
-        console.error(versionError);
         showError("Chyba", `<div class="error-box">Nepodařilo se načíst aktivní verzi QR.</div>`);
         return;
       }
@@ -173,88 +40,59 @@
         return;
       }
 
-      title.innerText = versionData.title || codeData.title || "QR formulář";
+      titleEl.textContent = versionData.title || codeData.title || "QR formulář";
 
       const schema = Array.isArray(versionData.schema) ? versionData.schema : [];
-
-      if (schema.length === 0) {
-        showError(title.innerText, `<div class="error-box">Tento QR kód nemá nastavený obsah.</div>`);
+      if (!schema.length) {
+        showError(titleEl.textContent, `<div class="error-box">Tento QR kód nemá nastavený obsah.</div>`);
         return;
       }
 
       const isInfoOnly = schema.every(field => field.type === "info");
-
-      schema.forEach(field => {
-        if (field.type === "info") {
-          const infoBox = document.createElement("div");
-          infoBox.className = "info-box";
-          infoBox.innerText = field.label || "";
-          form.appendChild(infoBox);
-          return;
-        }
-
-        const label = document.createElement("label");
-        label.innerText = field.label || "";
-
-        let input;
-
-        if (field.type === "textarea") {
-          input = document.createElement("textarea");
-        } else {
-          input = document.createElement("input");
-          input.type = field.type === "number" ? "number" : "text";
-        }
-
-        input.name = field.id;
-
-        form.appendChild(label);
-        form.appendChild(input);
-      });
+      formEl.innerHTML = "";
+      schema.forEach(field => formEl.appendChild(createField(field)));
 
       if (isInfoOnly) {
-        message.innerHTML = `<div class="muted">Tento QR kód zobrazuje pouze informaci.</div>`;
+        messageEl.innerHTML = `<div class="muted">Tento QR kód zobrazuje pouze informaci.</div>`;
         return;
       }
 
       const button = document.createElement("button");
-      button.innerText = "Odeslat";
+      button.className = "btn primary";
       button.type = "submit";
-      form.appendChild(button);
+      button.textContent = "Odeslat";
+      formEl.appendChild(button);
 
-      form.addEventListener("submit", async (e) => {
+      formEl.addEventListener("submit", async (e) => {
         e.preventDefault();
 
-        const answers = {};
+        const answers = Object.fromEntries(
+          schema
+            .filter(field => field.type !== "info")
+            .map(field => [field.id, formEl.querySelector(`[name="${escapeHtml(field.id)}"]`)?.value || ""])
+        );
 
-        schema.forEach(field => {
-          if (field.type === "info") return;
-          const element = form.querySelector(`[name="${field.id}"]`);
-          answers[field.id] = element ? element.value : "";
-        });
-
-        const { error: insertError } = await client
-          .from("responses")
-          .insert([
-            {
-              code_id: code,
-              code_version_id: versionData.id,
-              answers: answers
-            }
-          ]);
+        const { error: insertError } = await client.from("responses").insert([{
+          code_id: code,
+          code_version_id: versionData.id,
+          answers
+        }]);
 
         if (insertError) {
-          console.error(insertError);
           alert("Chyba při ukládání odpovědi.");
           return;
         }
 
-        message.innerHTML = "<div class='success'>Děkujeme, odpověď byla uložena 👍</div>";
-        form.reset();
+        messageEl.innerHTML = `<div class="status show success">Děkujeme, odpověď byla uložena 👍</div>`;
+        formEl.reset();
       });
     }
 
     loadForm();
-  </script>
 
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(console.error);
+    }
+  </script>
 </body>
 </html>

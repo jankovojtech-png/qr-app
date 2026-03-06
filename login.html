@@ -1,139 +1,82 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Přihlášení</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
-  font-family:Arial,sans-serif;
-  background:#f4f6f8;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  min-height:100vh;
-  margin:0;
-}
-
-.box{
-  background:white;
-  padding:30px;
-  border-radius:10px;
-  width:350px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.1);
-}
-
-h2{
-  margin-top:0;
-  margin-bottom:16px;
-}
-
-input{
-  width:100%;
-  padding:10px;
-  margin-bottom:12px;
-  border:1px solid #ccc;
-  border-radius:6px;
-  box-sizing:border-box;
-}
-
-button{
-  width:100%;
-  padding:10px;
-  background:#2d7ef7;
-  border:none;
-  color:white;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-button:disabled{
-  opacity:0.7;
-  cursor:not-allowed;
-}
-
-#msg{
-  margin-top:10px;
-  min-height:20px;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Přihlášení | QR App</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-
 <body>
+  <main class="login-layout">
+    <div class="login-box">
+      <h1>Přihlášení</h1>
+      <p class="lead">Přihlášení do administrace QR App.</p>
 
-<div class="box">
-  <h2>Přihlášení</h2>
+      <div id="status" class="status"></div>
 
-  <input id="email" type="email" placeholder="Email">
-  <input id="password" type="password" placeholder="Heslo">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="vas@email.cz">
 
-  <button id="loginBtn" onclick="login()">Přihlásit</button>
+      <label for="password">Heslo</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="Heslo">
 
-  <div id="msg"></div>
-</div>
+      <button id="loginBtn" class="btn primary" type="button">Přihlásit</button>
 
-<script>
-const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
-const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+      <div class="app-install-note">
+        Po refactoru je aplikace připravená i pro mobilní testování a základní PWA režim.
+      </div>
+    </div>
+  </main>
 
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <script type="module">
+    import { client } from "/js/supabase.js";
+    import { redirectIfLoggedIn } from "/js/auth.js";
+    import { $, } from "/js/helpers.js";
+    import { showStatus, clearStatus, setLoading } from "/js/ui.js";
 
-async function redirectIfLoggedIn() {
-  const { data, error } = await client.auth.getUser();
+    const emailInput = $("#email");
+    const passwordInput = $("#password");
+    const loginBtn = $("#loginBtn");
+    const status = $("#status");
 
-  if (!error && data?.user) {
-    window.location.href = "/admin.html";
-  }
-}
+    async function login() {
+      clearStatus(status);
 
-async function login(){
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value.trim();
-  const msg = document.getElementById("msg");
-  const loginBtn = document.getElementById("loginBtn");
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
 
-  msg.innerText = "";
+      if (!email || !password) {
+        showStatus(status, "Vyplňte email i heslo.", "error");
+        return;
+      }
 
-  if (!email || !password) {
-    msg.innerText = "Vyplňte email i heslo.";
-    return;
-  }
+      setLoading(loginBtn, true, "Přihlašuji...", "Přihlásit");
 
-  loginBtn.disabled = true;
-  loginBtn.innerText = "Přihlašuji...";
+      const { error } = await client.auth.signInWithPassword({ email, password });
 
-  const { error } = await client.auth.signInWithPassword({
-    email,
-    password
-  });
+      if (error) {
+        showStatus(status, error.message, "error");
+        setLoading(loginBtn, false, "Přihlašuji...", "Přihlásit");
+        return;
+      }
 
-  if(error){
-    msg.innerText = error.message;
-    loginBtn.disabled = false;
-    loginBtn.innerText = "Přihlásit";
-    return;
-  }
+      window.location.href = "/admin.html";
+    }
 
-  window.location.href = "/admin.html";
-}
+    [emailInput, passwordInput].forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") login();
+      });
+    });
 
-document.getElementById("password").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    login();
-  }
-});
+    loginBtn.addEventListener("click", login);
+    redirectIfLoggedIn();
 
-document.getElementById("email").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    login();
-  }
-});
-
-redirectIfLoggedIn();
-</script>
-
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(console.error);
+    }
+  </script>
 </body>
 </html>
