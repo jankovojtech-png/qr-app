@@ -23,6 +23,10 @@
       --info-bg:#dbeafe;
       --neutral:#374151;
       --neutral-bg:#e5e7eb;
+      --warning:#92400e;
+      --warning-bg:#fef3c7;
+      --danger:#991b1b;
+      --danger-bg:#fee2e2;
       --shadow:0 10px 30px rgba(0,0,0,.06);
       --radius:16px;
     }
@@ -158,6 +162,23 @@
       color:var(--text);
     }
 
+    .btn.warning{
+      background:#f3f4f6;
+      color:#111827;
+      border:1px solid var(--border);
+    }
+
+    .btn.small{
+      padding:8px 12px;
+      font-size:13px;
+      border-radius:9px;
+    }
+
+    .btn:disabled{
+      opacity:.7;
+      cursor:not-allowed;
+    }
+
     .userbox{
       background:white;
       padding:12px 16px;
@@ -206,6 +227,24 @@
       line-height:1.6;
     }
 
+    .box.success{
+      background:var(--success-bg);
+      color:var(--success);
+      border-color:#a7f3d0;
+    }
+
+    .box.error{
+      background:var(--danger-bg);
+      color:var(--danger);
+      border-color:#fecaca;
+    }
+
+    .box.warning{
+      background:var(--warning-bg);
+      color:var(--warning);
+      border-color:#fde68a;
+    }
+
     .versions-box{
       background:white;
       padding:16px;
@@ -223,7 +262,7 @@
 
     .versions-grid{
       display:grid;
-      grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
       gap:12px;
     }
 
@@ -250,6 +289,13 @@
       color:#555;
       margin-bottom:6px;
       line-height:1.5;
+    }
+
+    .version-actions{
+      margin-top:12px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
     }
 
     .badge{
@@ -415,6 +461,13 @@
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let latestLoadedRows = [];
+    let currentUser = null;
+
+    function setStatus(message, type = "") {
+      const status = document.getElementById("status");
+      status.className = "box" + (type ? " " + type : "");
+      status.textContent = message;
+    }
 
     function formatDate(value) {
       if (!value) return "";
@@ -530,8 +583,66 @@
       }
     }
 
+    async function activateVersion(versionId, codeId) {
+      const confirmed = confirm("Opravdu chcete aktivovat tuto historickou verzi?");
+      if (!confirmed) return;
+
+      try {
+        setStatus("Aktivuji vybranou verzi...", "warning");
+
+        const { data: versionData, error: versionLoadError } = await client
+          .from("code_versions")
+          .select("id, code_id, title, schema, version_number")
+          .eq("id", versionId)
+          .eq("code_id", codeId)
+          .single();
+
+        if (versionLoadError || !versionData) {
+          throw new Error("Nepodařilo se načíst vybranou verzi.");
+        }
+
+        const { error: deactivateError } = await client
+          .from("code_versions")
+          .update({ is_active: false })
+          .eq("code_id", codeId)
+          .eq("is_active", true);
+
+        if (deactivateError) {
+          throw new Error("Nepodařilo se deaktivovat aktuální verzi: " + deactivateError.message);
+        }
+
+        const { error: activateError } = await client
+          .from("code_versions")
+          .update({ is_active: true })
+          .eq("id", versionId)
+          .eq("code_id", codeId);
+
+        if (activateError) {
+          throw new Error("Nepodařilo se aktivovat vybranou verzi: " + activateError.message);
+        }
+
+        const { error: codeUpdateError } = await client
+          .from("codes")
+          .update({
+            title: versionData.title,
+            schema: versionData.schema
+          })
+          .eq("id", codeId)
+          .eq("owner_id", currentUser.id);
+
+        if (codeUpdateError) {
+          throw new Error("Verze byla aktivována, ale nepodařilo se propsat title/schema do codes: " + codeUpdateError.message);
+        }
+
+        setStatus(`Aktivována verze ${versionData.version_number}.`, "success");
+        await loadAdminData(currentUser);
+      } catch (err) {
+        console.error(err);
+        setStatus("Chyba při aktivaci verze: " + err.message, "error");
+      }
+    }
+
     async function loadAdminData(user) {
-      const status = document.getElementById("status");
       const tbody = document.getElementById("tbody");
       const emptyTable = document.getElementById("emptyTable");
       const totalCountEl = document.getElementById("totalCount");
@@ -551,7 +662,7 @@
       latestLoadedRows = [];
 
       try {
-        status.textContent = "Načítám data...";
+        setStatus("Načítám data...");
 
         const params = new URLSearchParams(window.location.search);
         const selectedCode = params.get("code");
@@ -565,7 +676,7 @@
           .order("created_at", { ascending: false });
 
         if (myCodesError) {
-          status.textContent = "Chyba načtení vašich QR kódů: " + myCodesError.message;
+          setStatus("Chyba načtení vašich QR kódů: " + myCodesError.message, "error");
           console.error(myCodesError);
           return;
         }
@@ -573,7 +684,7 @@
         if (!myCodes || myCodes.length === 0) {
           pageTitle.textContent = "Odpovědi z formulářů";
           pageLead.textContent = "Zatím nemáte vytvořený žádný QR kód.";
-          status.innerHTML = 'Zatím nemáte žádný QR kód. <a href="/create-qr.html">Vytvořit první QR</a>';
+          setStatus("Zatím nemáte žádný QR kód.", "warning");
           totalCountEl.textContent = "0";
           avgRatingEl.textContent = "0";
           codeCountEl.textContent = "0";
@@ -596,7 +707,7 @@
           if (!myCodeIds.includes(selectedCode)) {
             pageTitle.textContent = "Detail QR";
             pageLead.textContent = "Vybraný QR kód nebyl nalezen nebo nepatří přihlášenému uživateli.";
-            status.textContent = "Tento QR kód nepatří přihlášenému uživateli nebo neexistuje.";
+            setStatus("Tento QR kód nepatří přihlášenému uživateli nebo neexistuje.", "error");
             totalCountEl.textContent = "0";
             avgRatingEl.textContent = "0";
             codeCountEl.textContent = "0";
@@ -619,7 +730,7 @@
         if (selectedCode) {
           const { data: versionsData, error: versionsError } = await client
             .from("code_versions")
-            .select("id, code_id, version_number, title, is_active, created_at")
+            .select("id, code_id, version_number, title, schema, is_active, created_at")
             .eq("code_id", selectedCode)
             .order("version_number", { ascending: false });
 
@@ -668,7 +779,7 @@
         const { data, error } = await responsesQuery;
 
         if (error) {
-          status.textContent = "Chyba načtení: " + error.message;
+          setStatus("Chyba načtení: " + error.message, "error");
           console.error(error);
           return;
         }
@@ -686,6 +797,8 @@
             const card = document.createElement("div");
             card.className = "version-card" + (version.is_active ? " active" : "");
 
+            const canActivate = !version.is_active;
+
             card.innerHTML = `
               <div class="badge ${version.is_active ? "active" : "inactive"}">
                 ${version.is_active ? "Aktivní verze" : "Historická verze"}
@@ -695,16 +808,33 @@
               </div>
               <div class="version-meta"><strong>Odpovědí:</strong> ${versionCounts[version.id] || 0}</div>
               <div class="version-meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(version.created_at))}</div>
+              <div class="version-actions">
+                ${canActivate
+                  ? `<button class="btn warning small" type="button" data-activate-version="${escapeHtml(version.id)}" data-activate-code="${escapeHtml(version.code_id)}">Aktivovat tuto verzi</button>`
+                  : `<button class="btn light small" type="button" disabled>Tato verze je aktivní</button>`
+                }
+              </div>
             `;
 
             versionsGrid.appendChild(card);
           });
+
+          versionsGrid.querySelectorAll("[data-activate-version]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const versionId = btn.getAttribute("data-activate-version");
+              const codeId = btn.getAttribute("data-activate-code");
+              btn.disabled = true;
+              await activateVersion(versionId, codeId);
+            });
+          });
         }
 
         if (!data || data.length === 0) {
-          status.textContent = selectedCode
-            ? "Pro tento QR zatím nejsou žádné odpovědi."
-            : "Zatím nejsou žádné odpovědi k vašim QR kódům.";
+          setStatus(
+            selectedCode
+              ? "Pro tento QR zatím nejsou žádné odpovědi."
+              : "Zatím nejsou žádné odpovědi k vašim QR kódům."
+          );
           totalCountEl.textContent = "0";
           avgRatingEl.textContent = "0";
           codeCountEl.textContent = selectedCode ? "1" : String(myCodeIds.length);
@@ -712,9 +842,11 @@
           return;
         }
 
-        status.textContent = selectedCode
-          ? "Načteno odpovědí pro QR " + (codeInfoMap[selectedCode]?.title || selectedCode) + ": " + data.length
-          : "Načteno odpovědí: " + data.length;
+        setStatus(
+          selectedCode
+            ? "Načteno odpovědí pro QR " + (codeInfoMap[selectedCode]?.title || selectedCode) + ": " + data.length
+            : "Načteno odpovědí: " + data.length
+        );
 
         totalCountEl.textContent = data.length;
 
@@ -783,7 +915,7 @@
         }
 
       } catch (err) {
-        status.textContent = "Neočekávaná chyba: " + err.message;
+        setStatus("Neočekávaná chyba: " + err.message, "error");
         console.error(err);
       }
     }
@@ -794,11 +926,11 @@
     }
 
     async function initPage() {
-      const user = await requireAuth();
-      if (!user) return;
+      currentUser = await requireAuth();
+      if (!currentUser) return;
 
       document.body.style.display = "block";
-      await loadAdminData(user);
+      await loadAdminData(currentUser);
     }
 
     document.getElementById("logoutBtn").addEventListener("click", logout);
