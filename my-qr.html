@@ -3,81 +3,207 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Moje QR</title>
+  <title>Moje QR | QR App</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --primary:#2563eb;
+      --primary-dark:#1d4ed8;
+      --dark:#111827;
+      --light:#e5e7eb;
+      --warning:#b45309;
+      --danger:#b91c1c;
+      --success:#166534;
+      --success-bg:#dcfce7;
+      --inactive:#92400e;
+      --inactive-bg:#fef3c7;
+      --shadow:0 10px 30px rgba(0,0,0,.06);
+      --radius:16px;
+    }
+
+    *{
+      box-sizing:border-box;
+    }
+
     body{
       font-family:Arial,sans-serif;
-      background:#f4f6f8;
+      background:var(--bg);
       margin:0;
-      padding:30px;
+      color:var(--text);
+      display:none;
     }
 
     .topbar{
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:rgba(255,255,255,.92);
+      backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--border);
+    }
+
+    .topbar-inner{
+      max-width:1200px;
+      margin:0 auto;
+      padding:14px 20px;
       display:flex;
       justify-content:space-between;
       align-items:center;
-      gap:12px;
+      gap:16px;
       flex-wrap:wrap;
-      margin-bottom:24px;
     }
 
-    .topbar-left{
+    .brand{
+      font-weight:700;
+      font-size:18px;
+    }
+
+    .nav{
       display:flex;
-      align-items:center;
-      gap:12px;
+      gap:10px;
       flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .nav a,
+    .nav button{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:12px;
+      font-size:14px;
+      text-decoration:none;
+      cursor:pointer;
+    }
+
+    .nav a.active{
+      background:var(--dark);
+      color:#fff;
+      border-color:var(--dark);
+    }
+
+    .page{
+      max-width:1200px;
+      margin:0 auto;
+      padding:28px 20px 60px;
+    }
+
+    .page-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:16px;
+      flex-wrap:wrap;
+      margin-bottom:20px;
     }
 
     h1{
-      margin:0;
+      margin:0 0 8px;
+      font-size:32px;
+      line-height:1.15;
     }
 
-    .actions{
+    .lead{
+      margin:0;
+      color:var(--muted);
+      line-height:1.6;
+      max-width:780px;
+    }
+
+    .header-actions{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
     }
 
     .btn{
-      display:inline-block;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
       padding:10px 14px;
       border:none;
-      border-radius:6px;
-      background:#2d7ef7;
-      color:white;
+      border-radius:10px;
       text-decoration:none;
       cursor:pointer;
       font-size:14px;
+      font-weight:700;
+    }
+
+    .btn.primary{
+      background:var(--primary);
+      color:white;
+    }
+
+    .btn.primary:hover{
+      background:var(--primary-dark);
     }
 
     .btn.secondary{
-      background:#111827;
+      background:var(--dark);
+      color:white;
     }
 
     .btn.light{
-      background:#e5e7eb;
-      color:#111827;
+      background:var(--light);
+      color:var(--text);
     }
 
     .btn.warning{
-      background:#b45309;
+      background:var(--warning);
       color:white;
     }
 
     .btn.danger{
-      background:#b91c1c;
+      background:var(--danger);
       color:white;
     }
 
     .status{
       background:white;
       padding:14px 16px;
-      border-radius:8px;
-      margin-bottom:20px;
+      border-radius:12px;
+      margin-bottom:22px;
+      border:1px solid var(--border);
+      box-shadow:var(--shadow);
+    }
+
+    .summary{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:16px;
+      margin-bottom:22px;
+    }
+
+    .summary-card{
+      background:white;
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow:var(--shadow);
+      padding:18px;
+    }
+
+    .summary-card .label{
+      color:var(--muted);
+      font-size:14px;
+      margin-bottom:8px;
+    }
+
+    .summary-card .value{
+      font-size:34px;
+      font-weight:700;
+      line-height:1;
     }
 
     .grid{
@@ -88,32 +214,14 @@
 
     .card{
       background:white;
-      border-radius:10px;
+      border-radius:16px;
       padding:18px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.06);
-      border:2px solid transparent;
+      box-shadow:var(--shadow);
+      border:1px solid var(--border);
     }
 
     .card.inactive{
       border-color:#f59e0b;
-      opacity:0.95;
-    }
-
-    .card h2{
-      margin-top:0;
-      margin-bottom:10px;
-      font-size:20px;
-    }
-
-    .meta{
-      font-size:14px;
-      color:#555;
-      margin-bottom:8px;
-      word-break:break-word;
-    }
-
-    .meta strong{
-      color:#111;
     }
 
     .badge{
@@ -122,73 +230,144 @@
       border-radius:999px;
       font-size:12px;
       font-weight:bold;
-      margin-bottom:10px;
+      margin-bottom:12px;
     }
 
     .badge.active{
-      background:#dcfce7;
-      color:#166534;
+      background:var(--success-bg);
+      color:var(--success);
     }
 
     .badge.inactive{
-      background:#fef3c7;
-      color:#92400e;
+      background:var(--inactive-bg);
+      color:var(--inactive);
     }
 
-    .qr-wrap{
-      text-align:center;
-      margin:18px 0;
+    .card h2{
+      margin:0 0 12px;
+      font-size:22px;
+      line-height:1.25;
+      word-break:break-word;
+    }
+
+    .meta{
+      font-size:14px;
+      color:#4b5563;
+      margin-bottom:8px;
+      word-break:break-word;
+      line-height:1.55;
+    }
+
+    .meta strong{
+      color:#111827;
     }
 
     .link{
       word-break:break-all;
       font-size:13px;
-      color:#444;
+      color:#374151;
       background:#f9fafb;
-      padding:10px;
-      border-radius:6px;
-      margin-bottom:14px;
+      border:1px solid var(--border);
+      padding:10px 12px;
+      border-radius:10px;
+      margin:14px 0;
+      line-height:1.5;
+    }
+
+    .qr-wrap{
+      text-align:center;
+      margin:18px 0;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
     }
 
     .card-actions{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin-top:10px;
+      margin-top:12px;
     }
 
     .empty{
       background:white;
       padding:24px;
-      border-radius:10px;
+      border-radius:16px;
+      border:1px solid var(--border);
+      box-shadow:var(--shadow);
+    }
+
+    @media (max-width: 900px){
+      .summary{
+        grid-template-columns:1fr;
+      }
     }
 
     @media (max-width: 768px){
-      body{
-        padding:18px;
+      .page{
+        padding:20px 16px 50px;
+      }
+
+      .topbar-inner{
+        padding:12px 16px;
+      }
+
+      h1{
+        font-size:28px;
       }
     }
   </style>
 </head>
-<body style="display:none;">
+<body>
 
-  <div class="topbar">
-    <div class="topbar-left">
-      <h1>Moje QR kódy</h1>
-      <div class="actions">
-        <a class="btn light" href="/admin.html">Dashboard</a>
-        <a class="btn" href="/create-qr.html">+ Vytvořit QR</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">QR App Admin</div>
+      <nav class="nav">
+        <a href="/admin.html">Odpovědi</a>
+        <a href="/my-qr.html" class="active">Moje QR</a>
+        <a href="/create-qr.html">Vytvořit QR</a>
+        <a href="/generator.html">Generátor</a>
+        <button id="logoutBtn" type="button">Odhlásit</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1>Moje QR kódy</h1>
+        <p class="lead">
+          Přehled všech tvých QR kódů, jejich stavu, počtu verzí a počtu odpovědí.
+          Fyzický QR kód zůstává stejný, mění se jen aktivní verze obsahu.
+        </p>
+      </div>
+
+      <div class="header-actions">
+        <a class="btn primary" href="/create-qr.html">+ Vytvořit QR</a>
       </div>
     </div>
 
-    <div class="actions">
-      <button id="logoutBtn" class="btn secondary">Odhlásit se</button>
+    <div id="status" class="status">Ověřuji přihlášení...</div>
+
+    <div class="summary" id="summary" style="display:none;">
+      <div class="summary-card">
+        <div class="label">Počet QR kódů</div>
+        <div class="value" id="statCodes">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Aktivní QR</div>
+        <div class="value" id="statActive">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Celkem odpovědí</div>
+        <div class="value" id="statResponses">0</div>
+      </div>
     </div>
-  </div>
 
-  <div id="status" class="status">Ověřuji přihlášení...</div>
-
-  <div id="list" class="grid"></div>
+    <div id="list" class="grid"></div>
+  </main>
 
   <script>
     const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
@@ -249,7 +428,7 @@
 
     async function deleteQr(codeId) {
       const confirmed = confirm(
-        "Opravdu chcete smazat tento QR kód?\n\nPozor: pokud existují odpovědi navázané na tento QR, mazání může selhat podle nastavení databáze."
+        "Opravdu chcete smazat tento QR kód?\n\nPozor: pokud existují odpovědi nebo verze navázané na tento QR, mazání může selhat podle nastavení databáze."
       );
 
       if (!confirmed) return;
@@ -272,14 +451,16 @@
     async function loadMyQr() {
       const status = document.getElementById("status");
       const list = document.getElementById("list");
+      const summary = document.getElementById("summary");
 
       status.textContent = "Načítám vaše QR kódy...";
       list.innerHTML = "";
+      summary.style.display = "none";
 
       try {
         const { data: codes, error: codesError } = await client
           .from("codes")
-          .select("*")
+          .select("id, title, active, created_at, owner_id")
           .eq("owner_id", currentUser.id)
           .order("created_at", { ascending: false });
 
@@ -294,16 +475,16 @@
           list.innerHTML = `
             <div class="empty">
               Ještě nebyl vytvořen žádný QR kód.<br><br>
-              <a class="btn" href="/create-qr.html">Vytvořit první QR</a>
+              <a class="btn primary" href="/create-qr.html">Vytvořit první QR</a>
             </div>
           `;
           return;
         }
 
-        status.textContent = "Načteno QR kódů: " + codes.length;
-
         const codeIds = codes.map(c => c.id);
         const responseCounts = {};
+        const versionCounts = {};
+        const activeVersionMap = {};
 
         if (codeIds.length > 0) {
           const { data: responses, error: responsesError } = await client
@@ -312,31 +493,65 @@
             .in("code_id", codeIds);
 
           if (responsesError) {
-            console.error(responsesError);
+            console.error("Chyba načtení responses:", responsesError);
           } else {
             responses.forEach(r => {
               responseCounts[r.code_id] = (responseCounts[r.code_id] || 0) + 1;
             });
           }
+
+          const { data: versions, error: versionsError } = await client
+            .from("code_versions")
+            .select("id, code_id, version_number, title, is_active, created_at")
+            .in("code_id", codeIds)
+            .order("version_number", { ascending: false });
+
+          if (versionsError) {
+            console.error("Chyba načtení versions:", versionsError);
+          } else {
+            versions.forEach(v => {
+              versionCounts[v.code_id] = (versionCounts[v.code_id] || 0) + 1;
+
+              if (v.is_active === true && !activeVersionMap[v.code_id]) {
+                activeVersionMap[v.code_id] = v;
+              }
+            });
+          }
         }
+
+        const totalResponses = Object.values(responseCounts).reduce((sum, n) => sum + n, 0);
+        const totalCodes = codes.length;
+        const totalActiveCodes = codes.filter(c => c.active !== false).length;
+
+        document.getElementById("statCodes").textContent = totalCodes;
+        document.getElementById("statActive").textContent = totalActiveCodes;
+        document.getElementById("statResponses").textContent = totalResponses;
+        summary.style.display = "grid";
+
+        status.textContent = "Načteno QR kódů: " + totalCodes;
 
         for (const code of codes) {
           const publicUrl = window.location.origin + "/index.html?code=" + encodeURIComponent(code.id);
           const responseCount = responseCounts[code.id] || 0;
+          const versionCount = versionCounts[code.id] || 0;
+          const activeVersion = activeVersionMap[code.id] || null;
           const safeCodeId = encodeURIComponent(code.id);
+          const displayTitle = activeVersion?.title || code.title || "Bez názvu";
 
           const card = document.createElement("div");
           card.className = "card" + (code.active === false ? " inactive" : "");
 
           card.innerHTML = `
             <div class="badge ${code.active === false ? "inactive" : "active"}">
-              ${code.active === false ? "Neaktivní" : "Aktivní"}
+              ${code.active === false ? "Neaktivní QR" : "Aktivní QR"}
             </div>
 
-            <h2>${escapeHtml(code.title || "Bez názvu")}</h2>
+            <h2>${escapeHtml(displayTitle)}</h2>
 
             <div class="meta"><strong>Kód:</strong> ${escapeHtml(code.id)}</div>
             <div class="meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(code.created_at))}</div>
+            <div class="meta"><strong>Aktivní verze:</strong> ${activeVersion ? "v" + escapeHtml(activeVersion.version_number) : "nenalezena"}</div>
+            <div class="meta"><strong>Počet verzí:</strong> ${versionCount}</div>
             <div class="meta"><strong>Počet odpovědí:</strong> ${responseCount}</div>
 
             <div class="link">
@@ -347,9 +562,9 @@
             <div class="qr-wrap" id="qr-${safeCodeId}"></div>
 
             <div class="card-actions">
-              <a class="btn" href="/admin.html?code=${safeCodeId}">Odpovědi</a>
+              <a class="btn primary" href="/admin.html?code=${safeCodeId}">Odpovědi</a>
               <a class="btn light" href="/edit-qr.html?code=${safeCodeId}">Upravit QR</a>
-              <a class="btn light" href="${publicUrl}" target="_blank">Otevřít</a>
+              <a class="btn light" href="${publicUrl}" target="_blank" rel="noopener noreferrer">Otevřít</a>
               <button class="btn warning" data-action="toggle" data-id="${escapeHtml(code.id)}" data-active="${code.active === false ? "false" : "true"}">
                 ${code.active === false ? "Aktivovat" : "Deaktivovat"}
               </button>
@@ -393,6 +608,11 @@
       }
     }
 
+    async function logout() {
+      await client.auth.signOut();
+      window.location.href = "/login.html";
+    }
+
     async function initPage() {
       currentUser = await requireAuth();
       if (!currentUser) return;
@@ -401,10 +621,7 @@
       await loadMyQr();
     }
 
-    document.getElementById("logoutBtn").addEventListener("click", async () => {
-      await client.auth.signOut();
-      window.location.href = "/login.html";
-    });
+    document.getElementById("logoutBtn").addEventListener("click", logout);
 
     initPage();
   </script>
