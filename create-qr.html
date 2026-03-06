@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vytvořit QR</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      display: flex;
+      justify-content: center;
+      padding: 40px;
+      margin: 0;
+    }
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      width: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      background: #2d7ef7;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #msg {
+      margin-top: 14px;
+    }
+    #qrBox {
+      margin-top: 24px;
+      text-align: center;
+    }
+    #linkBox {
+      margin-top: 16px;
+      word-break: break-all;
+      font-size: 14px;
+    }
+    .small {
+      font-size: 13px;
+      color: #666;
+      margin-top: -8px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Vytvořit nový QR</h1>
+
+    <label for="title">Název QR</label>
+    <input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742" />
+
+    <label for="mode">Typ obsahu</label>
+    <select id="mode">
+      <option value="rating">Hodnocení + poznámka</option>
+      <option value="question">Jedna otázka + odpověď</option>
+      <option value="info">Pouze informace</option>
+    </select>
+
+    <label for="question">Otázka / text</label>
+    <textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
+    <div class="small">U typu „info“ se tento text zobrazí jako informace.</div>
+
+    <button id="createBtn">Vytvořit QR</button>
+
+    <div id="msg"></div>
+    <div id="linkBox"></div>
+    <div id="qrBox"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function requireLogin() {
+      const result = await client.auth.getUser();
+      const user = result?.data?.user;
+
+      if (!user) {
+        window.location.href = "login.html";
+        return null;
+      }
+
+      return user;
+    }
+
+    function slugify(text) {
+      return text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 30);
+    }
+
+    function generateCodeId(title) {
+      const base = slugify(title) || "qr";
+      const random = Math.random().toString(36).slice(2, 7).toUpperCase();
+      return base + "-" + random;
+    }
+
+    function buildSchema(mode, questionText) {
+      if (mode === "rating") {
+        return [
+          { id: "name", type: "text", label: "Jméno" },
+          { id: "rating", type: "number", label: questionText || "Hodnocení 1-5" },
+          { id: "note", type: "textarea", label: "Poznámka" }
+        ];
+      }
+
+      if (mode === "question") {
+        return [
+          { id: "answer", type: "textarea", label: questionText || "Vaše odpověď" }
+        ];
+      }
+
+      if (mode === "info") {
+        return [
+          { id: "info", type: "info", label: questionText || "Informace" }
+        ];
+      }
+
+      return [];
+    }
+
+    document.getElementById("createBtn").addEventListener("click", async function () {
+      const msg = document.getElementById("msg");
+      const qrBox = document.getElementById("qrBox");
+      const linkBox = document.getElementById("linkBox");
+
+      msg.textContent = "";
+      qrBox.innerHTML = "";
+      linkBox.innerHTML = "";
+
+      const user = await requireLogin();
+      if (!user) return;
+
+      const title = document.getElementById("title").value.trim();
+      const mode = document.getElementById("mode").value;
+      const question = document.getElementById("question").value.trim();
+
+      if (!title) {
+        msg.textContent = "Vyplň název QR.";
+        return;
+      }
+
+      const codeId = generateCodeId(title);
+      const schema = buildSchema(mode, question);
+
+      const insertResult = await client
+        .from("codes")
+        .insert([
+          {
+            id: codeId,
+            owner_id: user.id,
+            title: title,
+            schema: schema
+          }
+        ]);
+
+      if (insertResult.error) {
+        msg.textContent = "Chyba při ukládání: " + insertResult.error.message;
+        return;
+      }
+
+      const publicUrl = window.location.origin + "/index.html?code=" + encodeURIComponent(codeId);
+
+      msg.textContent = "QR bylo vytvořeno.";
+      linkBox.innerHTML = "<strong>Veřejný odkaz:</strong><br>" + publicUrl;
+
+      try {
+        const canvas = document.createElement("canvas");
+        await QRCode.toCanvas(canvas, publicUrl, {
+          width: 260,
+          margin: 2
+        });
+        qrBox.appendChild(canvas);
+      } catch (err) {
+        msg.textContent = "QR bylo uloženo, ale nepodařilo se vykreslit QR.";
+        console.error(err);
+      }
+    });
+
+    requireLogin();
+  </script>
+</body>
+</html>
