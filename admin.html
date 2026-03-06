@@ -15,6 +15,34 @@
     h1{
       margin-bottom:20px;
     }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+      margin-bottom:20px;
+      flex-wrap:wrap;
+    }
+    .userbox{
+      background:white;
+      padding:12px 16px;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .logout-btn{
+      background:#111827;
+      color:white;
+      border:none;
+      border-radius:6px;
+      padding:10px 14px;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .logout-btn:hover{
+      opacity:0.92;
+    }
     .stats{
       display:grid;
       grid-template-columns: repeat(3, minmax(180px, 1fr));
@@ -58,11 +86,27 @@
     tr:hover{
       background:#fafafa;
     }
+
+    @media (max-width: 768px){
+      body{
+        padding:20px;
+      }
+      .stats{
+        grid-template-columns:1fr;
+      }
+    }
   </style>
 </head>
 <body>
 
-  <h1>Odpovědi z formulářů</h1>
+  <div class="topbar">
+    <h1>Odpovědi z formulářů</h1>
+
+    <div class="userbox">
+      <span id="userEmail">Načítám uživatele...</span>
+      <button id="logoutBtn" class="logout-btn">Odhlásit se</button>
+    </div>
+  </div>
 
   <div class="stats">
     <div class="card">
@@ -81,7 +125,7 @@
     </div>
   </div>
 
-  <div class="box" id="status">Načítám data...</div>
+  <div class="box" id="status">Ověřuji přihlášení...</div>
 
   <table>
     <thead>
@@ -109,14 +153,31 @@
       return d.toLocaleString("cs-CZ");
     }
 
-    async function load() {
+    async function requireAuth() {
+      const { data, error } = await client.auth.getUser();
+
+      if (error || !data?.user) {
+        window.location.href = "/login.html";
+        return null;
+      }
+
+      return data.user;
+    }
+
+    async function loadAdminData(user) {
       const status = document.getElementById("status");
       const tbody = document.getElementById("tbody");
       const totalCountEl = document.getElementById("totalCount");
       const avgRatingEl = document.getElementById("avgRating");
       const codeCountEl = document.getElementById("codeCount");
+      const userEmailEl = document.getElementById("userEmail");
+
+      userEmailEl.textContent = user.email ? "Přihlášen: " + user.email : "Přihlášený uživatel";
+      tbody.innerHTML = "";
 
       try {
+        status.textContent = "Načítám data...";
+
         const { data, error } = await client
           .from("responses")
           .select("*")
@@ -178,7 +239,22 @@
       }
     }
 
-    load();
+    async function initPage() {
+      const user = await requireAuth();
+      if (!user) return;
+
+      console.log("Přihlášený user:", user);
+      console.log("User ID:", user.id);
+
+      await loadAdminData(user);
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await client.auth.signOut();
+      window.location.href = "/login.html";
+    });
+
+    initPage();
   </script>
 
 </body>
