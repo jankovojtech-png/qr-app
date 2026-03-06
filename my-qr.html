@@ -78,4 +78,7 @@
         client.from("code_versions").select("id, code_id, version_number, title, is_active, created_at").in("code_id", codeIds).order("version_number", { ascending: false })
       ]);
 
-      (responses || []).for
+      (responses || []).forEach(r => {
+  const key = r.code_id;
+  responseCounts[key] = (responseCounts[key] || 0) + 1;
+});
