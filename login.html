@@ -50,8 +50,14 @@ button{
   cursor:pointer;
 }
 
+button:disabled{
+  opacity:0.7;
+  cursor:not-allowed;
+}
+
 #msg{
   margin-top:10px;
+  min-height:20px;
 }
 </style>
 </head>
@@ -64,7 +70,7 @@ button{
   <input id="email" type="email" placeholder="Email">
   <input id="password" type="password" placeholder="Heslo">
 
-  <button onclick="login()">Přihlásit</button>
+  <button id="loginBtn" onclick="login()">Přihlásit</button>
 
   <div id="msg"></div>
 </div>
@@ -75,9 +81,29 @@ const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+async function redirectIfLoggedIn() {
+  const { data, error } = await client.auth.getUser();
+
+  if (!error && data?.user) {
+    window.location.href = "/admin.html";
+  }
+}
+
 async function login(){
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value.trim();
+  const msg = document.getElementById("msg");
+  const loginBtn = document.getElementById("loginBtn");
+
+  msg.innerText = "";
+
+  if (!email || !password) {
+    msg.innerText = "Vyplňte email i heslo.";
+    return;
+  }
+
+  loginBtn.disabled = true;
+  loginBtn.innerText = "Přihlašuji...";
 
   const { error } = await client.auth.signInWithPassword({
     email,
@@ -85,12 +111,28 @@ async function login(){
   });
 
   if(error){
-    document.getElementById("msg").innerText = error.message;
+    msg.innerText = error.message;
+    loginBtn.disabled = false;
+    loginBtn.innerText = "Přihlásit";
     return;
   }
 
-  window.location.href = "create-qr.html";
+  window.location.href = "/admin.html";
 }
+
+document.getElementById("password").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") {
+    login();
+  }
+});
+
+document.getElementById("email").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") {
+    login();
+  }
+});
+
+redirectIfLoggedIn();
 </script>
 
 </body>
