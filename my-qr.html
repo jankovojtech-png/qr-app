@@ -159,6 +159,16 @@
       return d.toLocaleString("cs-CZ");
     }
 
+    function escapeHtml(value) {
+      if (value === null || value === undefined) return "";
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     async function requireAuth() {
       const { data, error } = await client.auth.getUser();
 
@@ -204,8 +214,7 @@
         status.textContent = "Načteno QR kódů: " + codes.length;
 
         const codeIds = codes.map(c => c.id);
-
-        let responseCounts = {};
+        const responseCounts = {};
 
         if (codeIds.length > 0) {
           const { data: responses, error: responsesError } = await client
@@ -225,33 +234,35 @@
         for (const code of codes) {
           const publicUrl = window.location.origin + "/index.html?code=" + encodeURIComponent(code.id);
           const responseCount = responseCounts[code.id] || 0;
+          const safeCodeId = encodeURIComponent(code.id);
 
           const card = document.createElement("div");
           card.className = "card";
 
           card.innerHTML = `
-            <h2>${code.title || "Bez názvu"}</h2>
+            <h2>${escapeHtml(code.title || "Bez názvu")}</h2>
 
-            <div class="meta"><strong>Kód:</strong> ${code.id}</div>
-            <div class="meta"><strong>Vytvořeno:</strong> ${formatDate(code.created_at)}</div>
+            <div class="meta"><strong>Kód:</strong> ${escapeHtml(code.id)}</div>
+            <div class="meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(code.created_at))}</div>
             <div class="meta"><strong>Počet odpovědí:</strong> ${responseCount}</div>
 
             <div class="link">
               <strong>Veřejný odkaz:</strong><br>
-              ${publicUrl}
+              ${escapeHtml(publicUrl)}
             </div>
 
-            <div class="qr-wrap" id="qr-${code.id}"></div>
+            <div class="qr-wrap" id="qr-${safeCodeId}"></div>
 
             <div class="card-actions">
-              <a class="btn" href="/admin.html?code=${encodeURIComponent(code.id)}">Zobrazit odpovědi</a>
+              <a class="btn" href="/admin.html?code=${safeCodeId}">Zobrazit odpovědi</a>
+              <a class="btn light" href="/edit-qr.html?code=${safeCodeId}">Upravit QR</a>
               <a class="btn light" href="${publicUrl}" target="_blank">Otevřít formulář</a>
             </div>
           `;
 
           list.appendChild(card);
 
-          const qrTarget = document.getElementById("qr-" + code.id);
+          const qrTarget = document.getElementById("qr-" + safeCodeId);
           const canvas = document.createElement("canvas");
 
           await QRCode.toCanvas(canvas, publicUrl, {
@@ -272,7 +283,6 @@
       if (!currentUser) return;
 
       document.body.style.display = "block";
-
       await loadMyQr();
     }
 
