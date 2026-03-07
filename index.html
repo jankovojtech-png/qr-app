@@ -62,12 +62,41 @@ if (field.type === "textarea") {
   input = document.createElement("input");
 
   if (field.type === "number") {
-    input.type = "number";
-    input.min = "1";
-    input.max = "5";
-    input.step = "1";
+  input.type = "number";
+  input.min = "1";
+  input.max = "5";
+  input.step = "1";
+
+  input.addEventListener("input", () => {
+    if (input.value === "") return;
+
+    let value = Number(input.value);
+
+    if (Number.isNaN(value)) {
+      input.value = "";
+      return;
+    }
+
+    value = Math.round(value);
+
+    if (value < 1) value = 1;
+    if (value > 5) value = 5;
+
+    input.value = String(value);
+  });
+
+  input.addEventListener("blur", () => {
+    if (input.value === "") return;
+
+    let value = Number(input.value);
+
+    if (Number.isNaN(value) || value < 1) value = 1;
+    if (value > 5) value = 5;
+
+    input.value = String(Math.round(value));
+  });
   } else {
-    input.type = "text";
+  input.type = "text";
   }
 }
 
