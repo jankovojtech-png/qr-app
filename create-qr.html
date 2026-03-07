@@ -1,95 +1,106 @@
 <!DOCTYPE html>
-    const result = $("#result");
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vytvořit QR</title>
 
-    async function codeExists(codeId) {
-      const { data, error } = await client.from("codes").select("id").eq("id", codeId).maybeSingle();
-      if (error && error.code !== "PGRST116") throw error;
-      return !!data;
-    }
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    async function generateUniqueCodeId(title) {
-      const base = slugify(title || "qr");
-      for (let i = 0; i < 10; i++) {
-        const candidate = `${base}-${randomSuffix(6)}`;
-        if (!(await codeExists(candidate))) return candidate;
-      }
-      throw new Error("Nepodařilo se vygenerovat unikátní ID QR.");
-    }
+</head>
 
-    async function createQr() {
-      clearStatus(status);
-      result.style.display = "none";
+<body class="auth-guard">
 
-      const title = $("#title").value.trim();
-      const mode = $("#mode").value;
-      const question = $("#question").value.trim();
-      let codeId = slugify($("#codeId").value.trim());
+<header class="topbar">
+<div class="topbar-inner">
 
-      if (!title) return showStatus(status, "Vyplň název QR.", "error");
-      if (!question && mode !== "rating") return showStatus(status, "Vyplň otázku nebo text.", "error");
+<div class="brand">QR App Admin</div>
 
-      setLoading(createBtn, true, "Vytvářím...", "Vytvořit QR");
+<nav class="nav">
+<a href="/admin.html">Odpovědi</a>
+<a href="/my-qr.html">Moje QR</a>
+<a href="/create-qr.html" class="active">Vytvořit QR</a>
+<a href="/generator.html">Generátor</a>
+<button id="logoutBtn">Odhlásit</button>
+</nav>
 
-      try {
-        if (!codeId) {
-          codeId = await generateUniqueCodeId(title);
-          $("#codeId").value = codeId;
-        }
+</div>
+</header>
 
-        if (await codeExists(codeId)) throw new Error("Tento kód QR už existuje. Zvol jiný.");
+<main class="page">
 
-        const schema = buildSchema(mode, question);
+<h1>Vytvořit QR</h1>
 
-        const { error: codeInsertError } = await client.from("codes").insert({
-          id: codeId,
-          title,
-          schema,
-          owner_id: currentUser.id,
-          active: true
-        });
+<div class="card">
 
-        if (codeInsertError) throw new Error("Nepodařilo se vytvořit QR: " + codeInsertError.message);
+<label>Název QR</label>
+<input id="title">
 
-        const { error: versionInsertError } = await client.from("code_versions").insert({
-          code_id: codeId,
-          version_number: 1,
-          title,
-          schema,
-          is_active: true
-        });
+<label>Otázka</label>
+<textarea id="question"></textarea>
 
-        if (versionInsertError) {
-          await client.from("codes").delete().eq("id", codeId).eq("owner_id", currentUser.id);
-          throw new Error("Nepodařilo se vytvořit první verzi QR: " + versionInsertError.message);
-        }
+<button id="createBtn" class="btn primary">Vytvořit QR</button>
 
-        const publicUrl = getPublicUrl(codeId);
-        const adminUrl = getAdminUrl(codeId);
+<div id="result"></div>
 
-        $("#publicLink").href = publicUrl;
-        $("#publicLink").textContent = publicUrl;
-        $("#adminLink").href = adminUrl;
-        $("#adminLink").textContent = adminUrl;
+</div>
 
-        await renderQr($("#qrWrap"), publicUrl);
-        result.style.display = "block";
-        showStatus(status, "QR bylo vytvořeno úspěšně.", "success");
-      } catch (err) {
-        showStatus(status, err.message || "Při vytváření QR došlo k chybě.", "error");
-      } finally {
-        setLoading(createBtn, false, "Vytvářím...", "Vytvořit QR");
-      }
-    }
+</main>
 
-    async function init() {
-      currentUser = await requireAuth();
-      if (!currentUser) return;
-      document.body.style.display = "block";
-    }
+<script type="module">
 
-    $("#createBtn").addEventListener("click", createQr);
-    $("#logoutBtn").addEventListener("click", logout);
-    init();
-  </script>
+import { client } from "/js/supabase.js"
+import { requireAuth , logout } from "/js/auth.js"
+import { $ } from "/js/helpers.js"
+import { renderQr } from "/js/qr.js"
+
+const result=$("#result")
+
+async function create(){
+
+const user = await requireAuth()
+if(!user) return
+
+const title=$("#title").value
+const question=$("#question").value
+
+const codeId = crypto.randomUUID().slice(0,8)
+
+const schema=[
+{ id:"name",type:"text",label:"Jméno"},
+{ id:"rating",type:"number",label:question},
+{ id:"note",type:"textarea",label:"Poznámka"}
+]
+
+await client.from("codes").insert({
+id:codeId,
+title,
+schema,
+owner_id:user.id,
+active:true
+})
+
+await client.from("code_versions").insert({
+code_id:codeId,
+version_number:1,
+title,
+schema,
+is_active:true
+})
+
+const url=window.location.origin+"/index.html?code="+codeId
+
+result.innerHTML=`<h3>QR vytvořeno</h3><div class="qr"></div><a href="${url}">${url}</a>`
+
+renderQr(result.querySelector(".qr"),url)
+
+}
+
+$("#createBtn").addEventListener("click",create)
+$("#logoutBtn").addEventListener("click",logout)
+
+</script>
+
 </body>
 </html>

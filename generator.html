@@ -1,58 +1,50 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR generátor | QR App</title>
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/css/app.css">
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR generátor</title>
+
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
 </head>
+
 <body>
-  <main class="public-layout">
-    <div class="public-card">
-      <h1>QR generátor</h1>
-      <label for="code">Kód formuláře</label>
-      <input id="code" type="text" placeholder="např. TEST1">
-      <button id="generateBtn" class="btn primary" type="button">Vygenerovat QR</button>
-      <div id="status" class="status"></div>
-      <div id="linkBox" class="link" style="display:none"></div>
-      <div id="qrcode" class="qr-wrap" style="display:none"></div>
-    </div>
-  </main>
 
-  <script type="module">
-    import { $, getPublicUrl } from "/js/helpers.js";
-    import { renderQr } from "/js/qr.js";
-    import { showStatus, clearStatus } from "/js/ui.js";
+<main class="page">
 
-    const btn = $("#generateBtn");
-    const codeInput = $("#code");
-    const qrBox = $("#qrcode");
-    const linkBox = $("#linkBox");
-    const status = $("#status");
+<h1>QR generátor</h1>
 
-    btn.addEventListener("click", async () => {
-      clearStatus(status);
-      const code = codeInput.value.trim();
+<input id="code" placeholder="kód QR">
 
-      if (!code) return showStatus(status, "Zadej kód formuláře.", "error");
+<button id="generateBtn" class="btn primary">Vygenerovat</button>
 
-      const formUrl = getPublicUrl(code);
-      linkBox.style.display = "block";
-      qrBox.style.display = "block";
-      linkBox.innerHTML = `<strong>Odkaz:</strong><br>${formUrl}`;
+<div id="result"></div>
 
-      try {
-        await renderQr(qrBox, formUrl, 260);
-      } catch (err) {
-        showStatus(status, "Nepodařilo se vytvořit QR kód.", "error");
-      }
-    });
+</main>
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(console.error);
-    }
-  </script>
+<script>
+
+const btn=document.getElementById("generateBtn")
+
+btn.onclick=async()=>{
+
+const code=document.getElementById("code").value.trim()
+
+if(!code)return alert("Zadej kód")
+
+const url=location.origin+"/index.html?code="+code
+
+const box=document.getElementById("result")
+
+box.innerHTML="<canvas></canvas><div>"+url+"</div>"
+
+QRCode.toCanvas(box.querySelector("canvas"),url)
+
+}
+
+</script>
+
 </body>
 </html>

@@ -3,13 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Admin – odpovědi | QR App</title>
+<title>Admin</title>
 
 <link rel="stylesheet" href="/css/app.css">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 </head>
 
 <body class="auth-guard">
@@ -24,7 +22,7 @@
 <a href="/my-qr.html">Moje QR</a>
 <a href="/create-qr.html">Vytvořit QR</a>
 <a href="/generator.html">Generátor</a>
-<button id="logoutBtn" type="button">Odhlásit</button>
+<button id="logoutBtn">Odhlásit</button>
 </nav>
 
 </div>
@@ -32,50 +30,11 @@
 
 <main class="page page-wide">
 
-<div class="page-head">
-
-<div>
 <h1>Odpovědi z formulářů</h1>
+
 <p class="lead">Přehled odpovědí z QR formulářů.</p>
-</div>
 
-<div class="header-actions">
-<a class="btn light" href="/my-qr.html">Moje QR</a>
-<a class="btn primary" href="/create-qr.html">Vytvořit QR</a>
-</div>
-
-</div>
-
-
-<div class="userbox">
-<span id="userEmail">Načítám uživatele...</span>
-</div>
-
-
-<div class="stats">
-
-<div class="card">
-<div class="card-title">Počet odpovědí</div>
-<div class="card-value" id="totalCount">0</div>
-</div>
-
-<div class="card">
-<div class="card-title">Průměr hodnocení</div>
-<div class="card-value" id="avgRating">0</div>
-</div>
-
-<div class="card">
-<div class="card-title">Počet QR</div>
-<div class="card-value" id="codeCount">0</div>
-</div>
-
-</div>
-
-
-<div class="box" id="status">
-Ověřuji přihlášení...
-</div>
-
+<div id="status" class="box">Načítám...</div>
 
 <div class="table-wrap">
 
@@ -86,9 +45,9 @@ Ověřuji přihlášení...
 <th>Název QR</th>
 <th>Kód</th>
 <th>Verze</th>
-<th>Jméno / odpověď</th>
+<th>Jméno</th>
 <th>Hodnocení</th>
-<th>Poznámka / obsah</th>
+<th>Poznámka</th>
 <th>Čas</th>
 </tr>
 </thead>
@@ -97,151 +56,63 @@ Ověřuji přihlášení...
 
 </table>
 
-<div id="emptyTable" class="empty-table" style="display:none;">
-Žádné odpovědi.
-</div>
-
 </div>
 
 </main>
 
-
 <script type="module">
 
-import { client } from "/js/supabase.js"
-import { requireAuth, logout } from "/js/auth.js"
-import { $, formatDate, escapeHtml } from "/js/helpers.js"
-import { setBoxStatus } from "/js/ui.js"
+import { client } from "/js/supabase.js";
+import { requireAuth , logout } from "/js/auth.js";
+import { $, formatDate } from "/js/helpers.js";
 
-let currentUser = null
+const tbody = $("#tbody");
+const status = $("#status");
 
+async function load(){
 
-function getAnswerName(answers){
+const user = await requireAuth();
+if(!user) return;
 
-if(!answers) return ""
+document.body.style.display = "block";
 
-return answers.name || answers.answer || ""
-
-}
-
-function getAnswerNote(answers){
-
-if(!answers) return ""
-
-return answers.note || answers.answer || answers.info || ""
-
-}
-
-function getAnswerRating(answers){
-
-if(!answers) return ""
-
-return answers.rating ?? ""
-
-}
-
-
-async function loadAdminData(){
-
-const tbody = $("#tbody")
-const emptyTable = $("#emptyTable")
-
-tbody.innerHTML = ""
-emptyTable.style.display = "none"
-
-setBoxStatus($("#status"), "Načítám data...")
-
-
-const { data, error } = await client
+const { data , error } = await client
 .from("responses")
 .select("*")
-.order("created_at", { ascending:false })
-
+.order("created_at",{ascending:false});
 
 if(error){
-
-setBoxStatus($("#status"), "Chyba načtení: " + error.message, "error")
-return
-
+status.textContent = error.message;
+return;
 }
 
-
-if(!data?.length){
-
-emptyTable.style.display = "block"
-setBoxStatus($("#status"), "Zatím nejsou žádné odpovědi.")
-
-return
-
-}
-
-
-$("#totalCount").textContent = data.length
-
-
-let ratings = []
-let codes = new Set()
-
+status.textContent = "Načteno odpovědí: "+data.length;
 
 data.forEach(r=>{
 
-const answers = r.answers || {}
+const tr = document.createElement("tr");
 
-codes.add(r.code_id)
+const a = r.answers || {};
 
-const rating = Number(answers.rating)
-
-if(!Number.isNaN(rating)) ratings.push(rating)
-
-
-const row = document.createElement("tr")
-
-row.innerHTML = `
-<td>${escapeHtml(r.code_id)}</td>
-<td>${escapeHtml(r.code_id)}</td>
+tr.innerHTML = `
+<td>${r.code_id}</td>
+<td>${r.code_id}</td>
 <td>v1</td>
-<td>${escapeHtml(getAnswerName(answers))}</td>
-<td>${escapeHtml(String(getAnswerRating(answers)))}</td>
-<td>${escapeHtml(getAnswerNote(answers))}</td>
-<td>${escapeHtml(formatDate(r.created_at))}</td>
-`
+<td>${a.name || ""}</td>
+<td>${a.rating || ""}</td>
+<td>${a.note || ""}</td>
+<td>${formatDate(r.created_at)}</td>
+`;
 
-tbody.appendChild(row)
+tbody.appendChild(tr);
 
-})
-
-
-$("#codeCount").textContent = codes.size
-
-$("#avgRating").textContent =
-ratings.length
-? (ratings.reduce((a,b)=>a+b,0) / ratings.length).toFixed(1)
-: "0"
-
-
-setBoxStatus($("#status"), `Načteno odpovědí: ${data.length}`)
+});
 
 }
 
+$("#logoutBtn").addEventListener("click",logout);
 
-async function init(){
-
-currentUser = await requireAuth()
-
-if(!currentUser) return
-
-document.body.style.display = "block"
-
-$("#userEmail").textContent = "Přihlášen: " + currentUser.email
-
-await loadAdminData()
-
-}
-
-
-$("#logoutBtn").addEventListener("click", logout)
-
-init()
+load();
 
 </script>
 

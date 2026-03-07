@@ -1,82 +1,61 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Přihlášení | QR App</title>
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/css/app.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Přihlášení</title>
+
+<link rel="stylesheet" href="/css/app.css">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
-  <main class="login-layout">
-    <div class="login-box">
-      <h1>Přihlášení</h1>
-      <p class="lead">Přihlášení do administrace QR App.</p>
 
-      <div id="status" class="status"></div>
+<body class="login-layout">
 
-      <label for="email">Email</label>
-      <input id="email" type="email" autocomplete="email" placeholder="vas@email.cz">
+<div class="login-box">
 
-      <label for="password">Heslo</label>
-      <input id="password" type="password" autocomplete="current-password" placeholder="Heslo">
+<h2>Přihlášení</h2>
 
-      <button id="loginBtn" class="btn primary" type="button">Přihlásit</button>
+<input id="email" type="email" placeholder="Email">
 
-      <div class="app-install-note">
-        Po refactoru je aplikace připravená i pro mobilní testování a základní PWA režim.
-      </div>
-    </div>
-  </main>
+<input id="password" type="password" placeholder="Heslo">
 
-  <script type="module">
-    import { client } from "/js/supabase.js";
-    import { redirectIfLoggedIn } from "/js/auth.js";
-    import { $, } from "/js/helpers.js";
-    import { showStatus, clearStatus, setLoading } from "/js/ui.js";
+<button id="loginBtn">Přihlásit</button>
 
-    const emailInput = $("#email");
-    const passwordInput = $("#password");
-    const loginBtn = $("#loginBtn");
-    const status = $("#status");
+<div id="msg"></div>
 
-    async function login() {
-      clearStatus(status);
+</div>
 
-      const email = emailInput.value.trim();
-      const password = passwordInput.value.trim();
+<script type="module">
 
-      if (!email || !password) {
-        showStatus(status, "Vyplňte email i heslo.", "error");
-        return;
-      }
+import { client } from "/js/supabase.js";
 
-      setLoading(loginBtn, true, "Přihlašuji...", "Přihlásit");
+async function login(){
 
-      const { error } = await client.auth.signInWithPassword({ email, password });
+const email = document.getElementById("email").value.trim();
+const password = document.getElementById("password").value.trim();
 
-      if (error) {
-        showStatus(status, error.message, "error");
-        setLoading(loginBtn, false, "Přihlašuji...", "Přihlásit");
-        return;
-      }
+const msg = document.getElementById("msg");
 
-      window.location.href = "/admin.html";
-    }
+if(!email || !password){
+msg.textContent = "Vyplňte email i heslo.";
+return;
+}
 
-    [emailInput, passwordInput].forEach((input) => {
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") login();
-      });
-    });
+const { error } = await client.auth.signInWithPassword({ email,password });
 
-    loginBtn.addEventListener("click", login);
-    redirectIfLoggedIn();
+if(error){
+msg.textContent = error.message;
+return;
+}
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(console.error);
-    }
-  </script>
+window.location.href = "/admin.html";
+
+}
+
+document.getElementById("loginBtn").addEventListener("click",login);
+
+</script>
+
 </body>
 </html>

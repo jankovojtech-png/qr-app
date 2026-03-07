@@ -1,84 +1,102 @@
 <!DOCTYPE html>
-        <a class="btn primary" href="/create-qr.html">+ Vytvořit QR</a>
-      </div>
-    </div>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moje QR</title>
 
-    <div id="status" class="box">Ověřuji přihlášení...</div>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <div class="summary" id="summary" style="display:none;">
-      <div class="summary-card"><div class="label">Počet QR kódů</div><div class="value" id="statCodes">0</div></div>
-      <div class="summary-card"><div class="label">Aktivní QR</div><div class="value" id="statActive">0</div></div>
-      <div class="summary-card"><div class="label">Celkem odpovědí</div><div class="value" id="statResponses">0</div></div>
-    </div>
+</head>
 
-    <div id="list" class="grid"></div>
-  </main>
+<body class="auth-guard">
 
-  <script type="module">
-    import { client } from "/js/supabase.js";
-    import { requireAuth, logout } from "/js/auth.js";
-    import { $, formatDate, escapeHtml, getPublicUrl } from "/js/helpers.js";
-    import { renderQr } from "/js/qr.js";
-    import { setBoxStatus } from "/js/ui.js";
+<header class="topbar">
+<div class="topbar-inner">
 
-    let currentUser = null;
+<div class="brand">QR App Admin</div>
 
-    async function toggleQrActive(codeId, currentActive) {
-      const actionText = currentActive ? "deaktivovat" : "aktivovat";
-      if (!confirm(`Opravdu chcete ${actionText} tento QR kód?`)) return;
+<nav class="nav">
+<a href="/admin.html">Odpovědi</a>
+<a href="/my-qr.html" class="active">Moje QR</a>
+<a href="/create-qr.html">Vytvořit QR</a>
+<a href="/generator.html">Generátor</a>
+<button id="logoutBtn">Odhlásit</button>
+</nav>
 
-      const { error } = await client
-        .from("codes")
-        .update({ active: !currentActive })
-        .eq("id", codeId)
-        .eq("owner_id", currentUser.id);
+</div>
+</header>
 
-      if (error) return alert("Chyba při změně stavu QR: " + error.message);
-      await loadMyQr();
-    }
+<main class="page">
 
-    async function deleteQr(codeId) {
-      if (!confirm("Opravdu chcete smazat tento QR kód?\n\nPokud existují odpovědi nebo verze navázané na tento QR, mazání může selhat podle nastavení databáze.")) return;
+<h1>Moje QR kódy</h1>
 
-      const { error } = await client.from("codes").delete().eq("id", codeId).eq("owner_id", currentUser.id);
-      if (error) return alert("Chyba při mazání QR: " + error.message);
-      await loadMyQr();
-    }
+<p class="lead">Seznam QR formulářů které jsi vytvořil.</p>
 
-    async function loadMyQr() {
-      const status = $("#status");
-      const list = $("#list");
-      const summary = $("#summary");
+<div id="status" class="box">Načítám...</div>
 
-      setBoxStatus(status, "Načítám vaše QR kódy...");
-      list.innerHTML = "";
-      summary.style.display = "none";
+<div id="list" class="qr-grid"></div>
 
-      const { data: codes, error: codesError } = await client
-        .from("codes")
-        .select("id, title, active, created_at")
-        .eq("owner_id", currentUser.id)
-        .order("created_at", { ascending: false });
+</main>
 
-      if (codesError) return setBoxStatus(status, "Chyba načtení QR kódů: " + codesError.message, "error");
+<script type="module">
 
-      if (!codes?.length) {
-        setBoxStatus(status, "Zatím nemáte žádný QR kód.", "warning");
-        list.innerHTML = `<div class="empty">Ještě nebyl vytvořen žádný QR kód.<br><br><a class="btn primary" href="/create-qr.html">Vytvořit první QR</a></div>`;
-        return;
-      }
+import { client } from "/js/supabase.js"
+import { requireAuth , logout } from "/js/auth.js"
+import { $ } from "/js/helpers.js"
+import { renderQr } from "/js/qr.js"
 
-      const codeIds = codes.map(c => c.id);
-      const responseCounts = {};
-      const versionCounts = {};
-      const activeVersionMap = {};
+const list = $("#list")
+const status = $("#status")
 
-      const [{ data: responses }, { data: versions }] = await Promise.all([
-        client.from("responses").select("code_id").in("code_id", codeIds),
-        client.from("code_versions").select("id, code_id, version_number, title, is_active, created_at").in("code_id", codeIds).order("version_number", { ascending: false })
-      ]);
+async function load(){
 
-      (responses || []).forEach(r => {
-  const key = r.code_id;
-  responseCounts[key] = (responseCounts[key] || 0) + 1;
-});
+const user = await requireAuth()
+if(!user) return
+
+document.body.style.display="block"
+
+const { data , error } = await client
+.from("codes")
+.select("*")
+.eq("owner_id",user.id)
+.order("created_at",{ascending:false})
+
+if(error){
+status.textContent = error.message
+return
+}
+
+status.textContent = "Počet QR: "+data.length
+
+data.forEach(code=>{
+
+const box = document.createElement("div")
+box.className="qr-card"
+
+const url = window.location.origin+"/index.html?code="+code.id
+
+box.innerHTML=`
+<h3>${code.title}</h3>
+<div class="qr"></div>
+<div class="muted">${code.id}</div>
+<a class="btn primary" href="/edit-qr.html?code=${code.id}">Upravit</a>
+`
+
+list.appendChild(box)
+
+renderQr(box.querySelector(".qr"),url)
+
+})
+
+}
+
+$("#logoutBtn").addEventListener("click",logout)
+
+load()
+
+</script>
+
+</body>
+</html>
