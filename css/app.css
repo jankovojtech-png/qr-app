@@ -660,3 +660,24 @@ tr:hover{
 .rating-stars input[type="radio"]:checked + label {
   opacity: 1;
 }
+.rating-stars {
+  display:flex;
+  flex-direction:row-reverse;
+  gap:4px;
+  font-size:26px;
+}
+
+.rating-stars input {
+  display:none;
+}
+
+.rating-stars label {
+  cursor:pointer;
+  color:#ccc;
+}
+
+.rating-stars input:checked ~ label,
+.rating-stars label:hover,
+.rating-stars label:hover ~ label {
+  color:#f5b301;
+}
