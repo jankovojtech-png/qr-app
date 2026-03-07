@@ -34,8 +34,17 @@
       <label for="title">Název</label>
       <input id="title" type="text">
 
-      <label for="question">Text otázky pro hodnocení</label>
-      <textarea id="question"></textarea>
+      <label for="formType">Typ QR</label>
+      <select id="formType">
+        <option value="rating">Hodnocení</option>
+        <option value="question">Otázka</option>
+        <option value="info">Info</option>
+      </select>
+
+      <div id="questionFieldWrap">
+        <label id="questionLabel" for="question">Text otázky pro hodnocení</label>
+        <textarea id="question"></textarea>
+      </div>
 
       <button id="saveBtn" class="btn primary" type="button">Uložit novou verzi</button>
     </div>
@@ -56,7 +65,10 @@
 
     const statusEl = $("#status");
     const titleInput = $("#title");
+    const formTypeInput = $("#formType");
     const questionInput = $("#question");
+    const questionFieldWrap = $("#questionFieldWrap");
+    const questionLabelEl = $("#questionLabel");
     const versionsEl = $("#versions");
     const saveBtn = $("#saveBtn");
 
@@ -69,10 +81,84 @@
       statusEl.textContent = text;
     }
 
+    function detectTypeFromSchema(schema) {
+      if (!Array.isArray(schema)) return "rating";
+      if (schema.some(field => field && field.id === "info")) return "info";
+      if (schema.some(field => field && field.id === "answer")) return "question";
+      if (schema.some(field => field && field.id === "rating")) return "rating";
+      return "rating";
+    }
+
     function getQuestionLabelFromSchema(schema) {
       if (!Array.isArray(schema)) return "";
-      const ratingField = schema.find(field => field && field.id === "rating");
-      return ratingField?.label || "";
+
+      const type = detectTypeFromSchema(schema);
+
+      if (type === "rating") {
+        const ratingField = schema.find(field => field && field.id === "rating");
+        return ratingField?.label || "";
+      }
+
+      if (type === "question") {
+        const answerField = schema.find(field => field && field.id === "answer");
+        return answerField?.label || "";
+      }
+
+      if (type === "info") {
+        const infoField = schema.find(field => field && field.id === "info");
+        return infoField?.label || "";
+      }
+
+      return "";
+    }
+
+    function getTypeLabel(type) {
+      if (type === "rating") return "Hodnocení";
+      if (type === "question") return "Otázka";
+      if (type === "info") return "Info";
+      return type || "";
+    }
+
+    function updateFormVisibility() {
+      const type = formTypeInput.value;
+
+      if (type === "rating") {
+        questionFieldWrap.style.display = "block";
+        questionLabelEl.textContent = "Text otázky pro hodnocení";
+        return;
+      }
+
+      if (type === "question") {
+        questionFieldWrap.style.display = "block";
+        questionLabelEl.textContent = "Text otázky";
+        return;
+      }
+
+      if (type === "info") {
+        questionFieldWrap.style.display = "block";
+        questionLabelEl.textContent = "Text informace";
+        return;
+      }
+    }
+
+    function buildSchemaByType(type, questionText) {
+      if (type === "question") {
+        return [
+          { id: "answer", type: "textarea", label: questionText || "Vaše odpověď" }
+        ];
+      }
+
+      if (type === "info") {
+        return [
+          { id: "info", type: "textarea", label: questionText || "Informace" }
+        ];
+      }
+
+      return [
+        { id: "name", type: "text", label: "Jméno" },
+        { id: "rating", type: "rating", label: questionText || "Hodnocení" },
+        { id: "note", type: "textarea", label: "Poznámka" }
+      ];
     }
 
     async function loadCode() {
@@ -133,19 +219,20 @@
       versionsCache.forEach(version => {
         const answersCount = responseCounts[version.id] || 0;
         const canDelete = version.is_active !== true && answersCount === 0;
+        const versionType = detectTypeFromSchema(version.schema);
+        const questionLabel = getQuestionLabelFromSchema(version.schema);
 
         const box = document.createElement("div");
         box.className = "box";
         box.style.marginBottom = "12px";
-
-        const questionLabel = getQuestionLabelFromSchema(version.schema);
 
         box.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
             <div>
               <div><strong>Verze:</strong> ${escapeHtml(String(version.version_number || ""))}</div>
               <div><strong>Název:</strong> ${escapeHtml(version.title || "")}</div>
-              <div><strong>Otázka:</strong> ${escapeHtml(questionLabel || "")}</div>
+              <div><strong>Typ:</strong> ${escapeHtml(getTypeLabel(versionType))}</div>
+              <div><strong>Obsah:</strong> ${escapeHtml(questionLabel || "")}</div>
               <div><strong>Aktivní:</strong> ${version.is_active ? "Ano" : "Ne"}</div>
               <div><strong>Odpovědí:</strong> ${answersCount}</div>
               <div><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(version.created_at))}</div>
@@ -211,6 +298,7 @@
 
     async function save() {
       const title = titleInput.value.trim();
+      const type = formTypeInput.value;
       const question = questionInput.value.trim();
 
       if (!title) {
@@ -218,11 +306,24 @@
         return;
       }
 
-      const schema = [
-        { id: "name", type: "text", label: "Jméno" },
-        { id: "rating", type: "rating", label: question || "Hodnocení" },
-        { id: "note", type: "textarea", label: "Poznámka" }
-      ];
+      if (!question) {
+        if (type === "rating") {
+          alert("Vyplň text otázky pro hodnocení.");
+          return;
+        }
+
+        if (type === "question") {
+          alert("Vyplň text otázky.");
+          return;
+        }
+
+        if (type === "info") {
+          alert("Vyplň text informace.");
+          return;
+        }
+      }
+
+      const schema = buildSchemaByType(type, question);
 
       const nextVersionNumber = versionsCache.length
         ? Math.max(...versionsCache.map(v => Number(v.version_number) || 0)) + 1
@@ -279,10 +380,13 @@
       await loadResponseCounts();
 
       const activeVersion = versionsCache.find(v => v.is_active === true) || versionsCache[0] || null;
+      const activeType = detectTypeFromSchema(activeVersion?.schema);
 
       titleInput.value = activeVersion?.title || currentCode?.title || "";
+      formTypeInput.value = activeType;
       questionInput.value = getQuestionLabelFromSchema(activeVersion?.schema) || "";
 
+      updateFormVisibility();
       renderVersions();
 
       setStatus(`Načteno verzí: ${versionsCache.length}`);
@@ -308,6 +412,7 @@
 
     $("#saveBtn").addEventListener("click", save);
     $("#logoutBtn").addEventListener("click", logout);
+    $("#formType").addEventListener("change", updateFormVisibility);
 
     init();
   </script>
