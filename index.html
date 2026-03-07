@@ -1,215 +1,245 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR formulář</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR formulář</title>
 
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/css/app.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/app.css">
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body class="public-page">
 
-<main class="public-layout">
-<div class="public-card">
+  <main class="public-layout">
+    <div class="public-card">
+      <h1 id="title">QR formulář</h1>
+      <form id="form"></form>
+      <div id="message"></div>
+    </div>
+  </main>
 
-<h1 id="title">QR formulář</h1>
+  <script type="module">
+    import { client } from "/js/supabase.js";
+    import { $ } from "/js/helpers.js";
 
-<form id="form"></form>
+    const titleEl = $("#title");
+    const formEl = $("#form");
+    const messageEl = $("#message");
 
-<div id="message"></div>
-
-</div>
-</main>
-
-<script type="module">
-
-import { client } from "/js/supabase.js";
-import { $ } from "/js/helpers.js";
-
-const titleEl = $("#title");
-const formEl = $("#form");
-const messageEl = $("#message");
-
-function showError(titleText, htmlMessage){
-titleEl.textContent = titleText;
-formEl.innerHTML = "";
-messageEl.innerHTML = htmlMessage;
-}
-
-function createField(field){
-
-if(field.type === "info"){
-const info = document.createElement("div");
-info.className = "info-box";
-info.textContent = field.label || "";
-return info;
-}
-
-const wrapper = document.createElement("div");
-
-const label = document.createElement("label");
-label.textContent = field.label || "";
-
-let input;
-
-if (field.type === "textarea") {
-  input = document.createElement("textarea");
-} else {
-  input = document.createElement("input");
-
-  if (field.type === "number") {
-  input.type = "number";
-  input.min = "1";
-  input.max = "5";
-  input.step = "1";
-
-  input.addEventListener("input", () => {
-    if (input.value === "") return;
-
-    let value = Number(input.value);
-
-    if (Number.isNaN(value)) {
-      input.value = "";
-      return;
+    function showError(titleText, htmlMessage) {
+      titleEl.textContent = titleText;
+      formEl.innerHTML = "";
+      messageEl.innerHTML = htmlMessage;
     }
 
-    value = Math.round(value);
+    function getResponseStorageKey(codeId, versionId) {
+      return `qr_response_${codeId}_${versionId}`;
+    }
 
-    if (value < 1) value = 1;
-    if (value > 5) value = 5;
+    function createField(field) {
+      if (field.type === "info") {
+        const info = document.createElement("div");
+        info.className = "info-box";
+        info.textContent = field.label || "";
+        return info;
+      }
 
-    input.value = String(value);
-  });
+      const wrapper = document.createElement("div");
 
-  input.addEventListener("blur", () => {
-    if (input.value === "") return;
+      if (field.type === "rating") {
+        wrapper.className = "form-group";
 
-    let value = Number(input.value);
+        const label = document.createElement("label");
+        label.textContent = field.label || "Hodnocení";
 
-    if (Number.isNaN(value) || value < 1) value = 1;
-    if (value > 5) value = 5;
+        const stars = document.createElement("div");
+        stars.className = "rating-stars";
+        stars.setAttribute("role", "radiogroup");
+        stars.setAttribute("aria-label", field.label || "Hodnocení");
 
-    input.value = String(Math.round(value));
-  });
-  } else {
-  input.type = "text";
-  }
-}
+        for (let i = 1; i <= 5; i++) {
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.id = `${field.id}-${i}`;
+          input.name = field.id;
+          input.value = String(i);
 
-input.name = field.id;
+          const starLabel = document.createElement("label");
+          starLabel.setAttribute("for", input.id);
+          starLabel.textContent = "★";
+          starLabel.title = `${i} z 5`;
 
-wrapper.append(label,input);
+          stars.appendChild(input);
+          stars.appendChild(starLabel);
+        }
 
-return wrapper;
-}
+        wrapper.append(label, stars);
+        return wrapper;
+      }
 
-async function loadForm(){
+      const label = document.createElement("label");
+      label.textContent = field.label || "";
 
-const code = new URLSearchParams(window.location.search).get("code");
+      let input;
 
-if(!code){
-showError("Chybný odkaz","<div class='error-box'>Chybí QR kód v odkazu.</div>");
-return;
-}
+      if (field.type === "textarea") {
+        input = document.createElement("textarea");
+      } else {
+        input = document.createElement("input");
+        input.type = "text";
+      }
 
-const { data:codeData , error:codeError } = await client
-.from("codes")
-.select("id,title,active")
-.eq("id",code)
-.single();
+      input.name = field.id;
 
-if(codeError || !codeData){
-showError("QR nenalezen","<div class='error-box'>Tento QR kód neexistuje.</div>");
-return;
-}
+      wrapper.append(label, input);
+      return wrapper;
+    }
 
-if(codeData.active === false){
-showError(codeData.title || "QR formulář",
-"<div class='error-box'>Tento QR kód není aktivní.</div>");
-return;
-}
+    async function loadForm() {
+      const code = new URLSearchParams(window.location.search).get("code");
 
-const { data:versionData , error:versionError } = await client
-.from("code_versions")
-.select("*")
-.eq("code_id",code)
-.eq("is_active",true)
-.order("version_number",{ascending:false})
-.limit(1)
-.maybeSingle();
+      if (!code) {
+        showError("Chybný odkaz", "<div class='error-box'>Chybí QR kód v odkazu.</div>");
+        return;
+      }
 
-if(versionError || !versionData){
-showError("Chyba","<div class='error-box'>Nepodařilo se načíst aktivní verzi.</div>");
-return;
-}
+      const { data: codeData, error: codeError } = await client
+        .from("codes")
+        .select("id,title,active")
+        .eq("id", code)
+        .single();
 
-titleEl.textContent = versionData.title || codeData.title || "QR formulář";
+      if (codeError || !codeData) {
+        showError("QR nenalezen", "<div class='error-box'>Tento QR kód neexistuje.</div>");
+        return;
+      }
 
-const schema = Array.isArray(versionData.schema) ? versionData.schema : [];
+      if (codeData.active === false) {
+        showError(
+          codeData.title || "QR formulář",
+          "<div class='error-box'>Tento QR kód není aktivní.</div>"
+        );
+        return;
+      }
 
-if(!schema.length){
-showError(titleEl.textContent,"<div class='error-box'>Tento QR kód nemá obsah.</div>");
-return;
-}
+      const { data: versionData, error: versionError } = await client
+        .from("code_versions")
+        .select("*")
+        .eq("code_id", code)
+        .eq("is_active", true)
+        .order("version_number", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-formEl.innerHTML = "";
+      if (versionError || !versionData) {
+        showError("Chyba", "<div class='error-box'>Nepodařilo se načíst aktivní verzi.</div>");
+        return;
+      }
 
-schema.forEach(field=>{
-formEl.appendChild(createField(field));
-});
+      const responseStorageKey = getResponseStorageKey(code, versionData.id);
 
-const isInfoOnly = schema.every(f=>f.type === "info");
+      if (localStorage.getItem(responseStorageKey)) {
+        showError(
+          versionData.title || codeData.title || "QR formulář",
+          "<div class='status show success'>Tuto odpověď už jste na tomto zařízení jednou odeslali.</div>"
+        );
+        return;
+      }
 
-if(isInfoOnly){
-messageEl.innerHTML = "<div class='muted'>Tento QR kód zobrazuje pouze informaci.</div>";
-return;
-}
+      titleEl.textContent = versionData.title || codeData.title || "QR formulář";
 
-const button = document.createElement("button");
-button.type = "submit";
-button.className = "btn primary";
-button.textContent = "Odeslat";
+      const schema = Array.isArray(versionData.schema) ? versionData.schema : [];
 
-formEl.appendChild(button);
+      if (!schema.length) {
+        showError(
+          titleEl.textContent,
+          "<div class='error-box'>Tento QR kód nemá obsah.</div>"
+        );
+        return;
+      }
 
-formEl.addEventListener("submit",async e=>{
-e.preventDefault();
+      formEl.innerHTML = "";
+      messageEl.innerHTML = "";
 
-const answers = {};
+      schema.forEach(field => {
+        formEl.appendChild(createField(field));
+      });
 
-schema.forEach(field=>{
-if(field.type === "info") return;
-const el = formEl.querySelector(`[name="${field.id}"]`);
-answers[field.id] = el ? el.value : "";
-});
+      const isInfoOnly = schema.every(f => f.type === "info");
 
-const { error } = await client
-.from("responses")
-.insert([{ code_id:code , code_version_id:versionData.id , answers }]);
+      if (isInfoOnly) {
+        messageEl.innerHTML = "<div class='muted'>Tento QR kód zobrazuje pouze informaci.</div>";
+        return;
+      }
 
-if(error){
-alert("Chyba při ukládání.");
-return;
-}
+      const button = document.createElement("button");
+      button.type = "submit";
+      button.className = "btn primary";
+      button.textContent = "Odeslat";
 
-messageEl.innerHTML = "<div class='status show success'>Děkujeme 👍</div>";
+      formEl.appendChild(button);
 
-formEl.reset();
-});
+      formEl.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-}
+        const answers = {};
 
-loadForm();
+        schema.forEach(field => {
+          if (field.type === "info") return;
 
-if("serviceWorker" in navigator){
-navigator.serviceWorker.register("/sw.js").catch(console.error);
-}
+          let el;
 
-</script>
+          if (field.type === "rating") {
+            el = formEl.querySelector(`[name="${field.id}"]:checked`);
+          } else {
+            el = formEl.querySelector(`[name="${field.id}"]`);
+          }
+
+          answers[field.id] = el ? el.value : "";
+        });
+
+        if ("rating" in answers) {
+          const rating = Number(answers.rating);
+
+          if (Number.isNaN(rating) || rating < 1 || rating > 5) {
+            alert("Hodnocení musí být mezi 1 a 5.");
+            return;
+          }
+
+          answers.rating = String(Math.round(rating));
+        }
+
+        const { error } = await client
+          .from("responses")
+          .insert([
+            {
+              code_id: code,
+              code_version_id: versionData.id,
+              answers
+            }
+          ]);
+
+        if (error) {
+          alert("Chyba při ukládání.");
+          return;
+        }
+
+        localStorage.setItem(responseStorageKey, "1");
+        messageEl.innerHTML = "<div class='status show success'>Děkujeme 👍</div>";
+        formEl.reset();
+        formEl.innerHTML = "";
+      });
+    }
+
+    loadForm();
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(console.error);
+    }
+  </script>
 
 </body>
 </html>
