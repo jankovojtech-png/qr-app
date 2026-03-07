@@ -10,7 +10,7 @@
 
 </head>
 
-<body class="auth-guard" style="display:block;">
+<body class="auth-guard">
 
 <header class="topbar">
 <div class="topbar-inner">
@@ -69,7 +69,7 @@ const codeId = crypto.randomUUID().slice(0,8)
 
 const schema = [
   { id:"name", type:"text", label:"Jméno" },
-  { id:"rating", type:"rating", label: question || "Hodnocení (1 = nejhorší, 5 = nejlepší)" },
+  { id:"rating", type:"number", label: question || "Hodnocení (1 = nejhorší, 5 = nejlepší)" },
   { id:"note", type:"textarea", label:"Poznámka" }
 ];
 
