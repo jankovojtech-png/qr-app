@@ -1,638 +1,106 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vytvořit QR | QR App</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vytvořit QR</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <style>
-    :root{
-      --bg:#f6f7fb;
-      --card:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --border:#e5e7eb;
-      --primary:#2563eb;
-      --primary-dark:#1d4ed8;
-      --dark:#111827;
-      --light:#e5e7eb;
-      --success:#166534;
-      --success-bg:#dcfce7;
-      --error:#991b1b;
-      --error-bg:#fee2e2;
-      --info:#1d4ed8;
-      --info-bg:#dbeafe;
-      --shadow:0 10px 30px rgba(0,0,0,.06);
-      --radius:16px;
-    }
-
-    *{
-      box-sizing:border-box;
-    }
-
-    body{
-      margin:0;
-      font-family:Arial,sans-serif;
-      background:var(--bg);
-      color:var(--text);
-      display:none;
-    }
-
-    .topbar{
-      position:sticky;
-      top:0;
-      z-index:20;
-      background:rgba(255,255,255,.92);
-      backdrop-filter:blur(8px);
-      border-bottom:1px solid var(--border);
-    }
-
-    .topbar-inner{
-      max-width:1100px;
-      margin:0 auto;
-      padding:14px 20px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:16px;
-      flex-wrap:wrap;
-    }
-
-    .brand{
-      font-weight:700;
-      font-size:18px;
-    }
-
-    .nav{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-
-    .nav a,
-    .nav button{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      border:1px solid var(--border);
-      background:#fff;
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:12px;
-      font-size:14px;
-      text-decoration:none;
-      cursor:pointer;
-    }
-
-    .nav a.active{
-      background:var(--dark);
-      color:#fff;
-      border-color:var(--dark);
-    }
-
-    .page{
-      max-width:1100px;
-      margin:0 auto;
-      padding:28px 20px 60px;
-    }
-
-    .grid{
-      display:grid;
-      grid-template-columns:1.4fr .9fr;
-      gap:24px;
-      align-items:start;
-    }
-
-    @media (max-width: 900px){
-      .grid{
-        grid-template-columns:1fr;
-      }
-    }
-
-    .card{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      padding:24px;
-    }
-
-    h1{
-      margin:0 0 10px;
-      font-size:30px;
-      line-height:1.15;
-    }
-
-    .lead{
-      margin:0 0 24px;
-      color:var(--muted);
-      line-height:1.6;
-    }
-
-    .section-title{
-      margin:0 0 16px;
-      font-size:20px;
-    }
-
-    label{
-      display:block;
-      margin-bottom:8px;
-      font-weight:700;
-      font-size:14px;
-    }
-
-    input, textarea, select{
-      width:100%;
-      padding:13px 14px;
-      border:1px solid var(--border);
-      border-radius:12px;
-      background:#fff;
-      color:var(--text);
-      font-size:15px;
-      margin-bottom:14px;
-    }
-
-    textarea{
-      resize:vertical;
-      min-height:120px;
-    }
-
-    .small{
-      font-size:13px;
-      color:var(--muted);
-      line-height:1.5;
-      margin-top:-6px;
-      margin-bottom:14px;
-    }
-
-    .actions{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-top:10px;
-    }
-
-    .btn{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      padding:12px 16px;
-      border:none;
-      border-radius:12px;
-      text-decoration:none;
-      cursor:pointer;
-      font-size:15px;
-      font-weight:700;
-    }
-
-    .btn.primary{
-      background:var(--primary);
-      color:white;
-    }
-
-    .btn.primary:hover{
-      background:var(--primary-dark);
-    }
-
-    .btn.light{
-      background:var(--light);
-      color:var(--text);
-    }
-
-    .notice{
-      background:var(--info-bg);
-      border:1px solid #bfdbfe;
-      color:var(--info);
-      padding:14px 16px;
-      border-radius:12px;
-      margin-bottom:18px;
-      font-size:14px;
-      line-height:1.55;
-    }
-
-    .status{
-      display:none;
-      margin-bottom:16px;
-      padding:14px 16px;
-      border-radius:12px;
-      font-size:14px;
-      line-height:1.5;
-    }
-
-    .status.show{
-      display:block;
-    }
-
-    .status.success{
-      background:var(--success-bg);
-      color:var(--success);
-      border:1px solid #a7f3d0;
-    }
-
-    .status.error{
-      background:var(--error-bg);
-      color:var(--error);
-      border:1px solid #fecaca;
-    }
-
-    .info-list{
-      display:grid;
-      gap:12px;
-    }
-
-    .info-item{
-      padding:14px 16px;
-      border:1px solid var(--border);
-      border-radius:12px;
-      background:#fafafa;
-      line-height:1.6;
-      color:#374151;
-    }
-
-    .info-item strong{
-      display:block;
-      margin-bottom:6px;
-      color:#111827;
-    }
-
-    .result{
-      display:none;
-      margin-top:20px;
-      padding:18px;
-      border:1px solid var(--border);
-      border-radius:14px;
-      background:#fcfcfc;
-    }
-
-    .result.show{
-      display:block;
-    }
-
-    .result a{
-      color:#2563eb;
-      word-break:break-all;
-    }
-
-    .qr-wrap{
-      margin-top:16px;
-      text-align:center;
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:14px;
-    }
-
-    details{
-      margin-top:8px;
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:12px 14px;
-      background:#fafafa;
-    }
-
-    summary{
-      cursor:pointer;
-      font-weight:700;
-    }
-  </style>
 </head>
-<body>
-
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">QR App Admin</div>
-      <nav class="nav">
-        <a href="/admin.html">Odpovědi</a>
-        <a href="/my-qr.html">Moje QR</a>
-        <a href="/create-qr.html" class="active">Vytvořit QR</a>
-        <a href="/generator.html">Generátor</a>
-        <button id="logoutBtn" type="button">Odhlásit</button>
-      </nav>
-    </div>
-  </header>
-
-  <main class="page">
-    <div class="grid">
-      <section class="card">
-        <h1>Vytvořit nové QR</h1>
-        <p class="lead">
-          Jednoduše nastav, co má QR sbírat nebo zobrazovat. Systém vše uloží na pozadí automaticky.
-        </p>
-
-        <div class="notice">
-          Vytištěný QR kód zůstává stále stejný. Když obsah později upravíš, vytvoří se nová verze bez nutnosti tisknout nový QR.
-        </div>
-
-        <div id="status" class="status"></div>
-
-        <label for="title">Název QR</label>
-        <input id="title" type="text" placeholder="Např. Kontrola úklidu – recepce" />
-
-        <label for="mode">Co má QR dělat</label>
-        <select id="mode">
-          <option value="rating">Sbírat hodnocení + poznámku</option>
-          <option value="question">Položit jednu otázku a sbírat odpověď</option>
-          <option value="info">Jen zobrazit informaci</option>
-        </select>
-
-        <label for="question">Otázka / text</label>
-        <textarea id="question" placeholder="Např. Jak jste byli spokojeni?"></textarea>
-        <div class="small">
-          U typu „informace“ se tento text jen zobrazí. U ostatních typů se použije jako otázka.
-        </div>
-
-        <details>
-          <summary>Pokročilé nastavení</summary>
-          <div style="margin-top:14px;">
-            <label for="codeId">Vlastní ID / kód QR (volitelné)</label>
-            <input id="codeId" type="text" placeholder="Např. uklid-recepce-01" />
-            <div class="small">
-              Když necháš prázdné, systém vygeneruje kód automaticky.
-            </div>
-          </div>
-        </details>
-
-        <div class="actions">
-          <button id="createBtn" class="btn primary" type="button">Vytvořit QR</button>
-        </div>
-
-        <div id="result" class="result">
-          <div><strong>QR bylo úspěšně vytvořeno.</strong></div>
-          <div style="margin-top:10px;">
-            Veřejný odkaz:<br />
-            <a id="publicLink" href="#" target="_blank" rel="noopener noreferrer"></a>
-          </div>
-          <div style="margin-top:10px;">
-            Správa odpovědí:<br />
-            <a id="adminLink" href="#" target="_blank" rel="noopener noreferrer"></a>
-          </div>
-          <div class="qr-wrap" id="qrWrap"></div>
-        </div>
-      </section>
-
-      <aside class="card">
-        <h2 class="section-title">Jak to funguje</h2>
-
-        <div class="info-list">
-          <div class="info-item">
-            <strong>Hodnocení + poznámka</strong>
-            Návštěvník vyplní jméno, hodnocení a krátkou poznámku.
-          </div>
-
-          <div class="info-item">
-            <strong>Jedna otázka</strong>
-            Zobrazí se tvoje otázka a pod ní jedno pole pro odpověď.
-          </div>
-
-          <div class="info-item">
-            <strong>Pouze informace</strong>
-            QR jen ukáže text nebo instrukci, bez vyplňování formuláře.
-          </div>
-
-          <div class="info-item">
-            <strong>Pozdější úpravy</strong>
-            Obsah můžeš později změnit v editaci QR. Vytvoří se nová verze, ale samotný QR kód zůstane stejný.
-          </div>
-        </div>
-      </aside>
-    </div>
-  </main>
-
-  <script>
-    const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
-
-    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    let currentUser = null;
-
-    function showStatus(message, type = "error") {
-      const status = document.getElementById("status");
-      status.className = "status show " + type;
-      status.textContent = message;
-    }
-
-    function clearStatus() {
-      const status = document.getElementById("status");
-      status.className = "status";
-      status.textContent = "";
-    }
-
-    function slugify(value) {
-      return String(value || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .replace(/-{2,}/g, "-");
-    }
-
-    function generateRandomSuffix(length = 6) {
-      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-      let out = "";
-      const values = new Uint32Array(length);
-      crypto.getRandomValues(values);
-
-      values.forEach((n) => {
-        out += chars[n % chars.length];
-      });
-
-      return out;
-    }
-
-    function buildSchema(mode, questionText) {
-      if (mode === "rating") {
-        return [
-          { id: "name", type: "text", label: "Jméno" },
-          { id: "rating", type: "number", label: questionText || "Hodnocení 1–5" },
-          { id: "note", type: "textarea", label: "Poznámka" }
-        ];
-      }
-
-      if (mode === "question") {
-        return [
-          { id: "answer", type: "textarea", label: questionText || "Vaše odpověď" }
-        ];
-      }
-
-      if (mode === "info") {
-        return [
-          { id: "info", type: "info", label: questionText || "Informace" }
-        ];
-      }
-
-      return [];
-    }
-
-    function getPublicUrl(codeId) {
-      return window.location.origin + "/index.html?code=" + encodeURIComponent(codeId);
-    }
-
-    function getAdminUrl(codeId) {
-      return window.location.origin + "/admin.html?code=" + encodeURIComponent(codeId);
-    }
-
-    function setLoading(isLoading) {
-      const btn = document.getElementById("createBtn");
-      btn.disabled = isLoading;
-      btn.textContent = isLoading ? "Vytvářím..." : "Vytvořit QR";
-    }
-
-    async function requireAuth() {
-      const { data, error } = await client.auth.getUser();
-
-      if (error || !data?.user) {
-        window.location.href = "/login.html";
-        return null;
-      }
-
-      return data.user;
-    }
-
-    async function codeExists(codeId) {
-      const { data, error } = await client
-        .from("codes")
-        .select("id")
-        .eq("id", codeId)
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116") {
-        throw error;
-      }
-
-      return !!data;
-    }
-
-    async function generateUniqueCodeId(title) {
-      for (let i = 0; i < 10; i++) {
-        const candidate = slugify(title || "qr") + "-" + generateRandomSuffix(6);
-        const exists = await codeExists(candidate);
-        if (!exists) return candidate;
-      }
-
-      throw new Error("Nepodařilo se vygenerovat unikátní ID QR.");
-    }
-
-    async function renderQr(url) {
-      const wrap = document.getElementById("qrWrap");
-      wrap.innerHTML = "";
-
-      const canvas = document.createElement("canvas");
-      await QRCode.toCanvas(canvas, url, { width: 220, margin: 2 });
-      wrap.appendChild(canvas);
-    }
-
-    async function createQr() {
-      clearStatus();
-      document.getElementById("result").classList.remove("show");
-
-      const title = document.getElementById("title").value.trim();
-      const mode = document.getElementById("mode").value;
-      const question = document.getElementById("question").value.trim();
-      let codeId = slugify(document.getElementById("codeId").value.trim());
-
-      if (!title) {
-        showStatus("Vyplň název QR.");
-        return;
-      }
-
-      if (!question && mode !== "rating") {
-        showStatus("Vyplň otázku nebo text.");
-        return;
-      }
-
-      setLoading(true);
-
-      try {
-        if (!codeId) {
-          codeId = await generateUniqueCodeId(title);
-          document.getElementById("codeId").value = codeId;
-        }
-
-        const exists = await codeExists(codeId);
-        if (exists) {
-          throw new Error("Tento kód QR už existuje. Zvol jiný.");
-        }
-
-        const schema = buildSchema(mode, question);
-
-        const { error: codeInsertError } = await client
-          .from("codes")
-          .insert({
-            id: codeId,
-            title: title,
-            schema: schema,
-            owner_id: currentUser.id,
-            active: true
-          });
-
-        if (codeInsertError) {
-          throw new Error("Nepodařilo se vytvořit QR: " + codeInsertError.message);
-        }
-
-        const { error: versionInsertError } = await client
-          .from("code_versions")
-          .insert({
-            code_id: codeId,
-            version_number: 1,
-            title: title,
-            schema: schema,
-            is_active: true
-          });
-
-        if (versionInsertError) {
-          await client
-            .from("codes")
-            .delete()
-            .eq("id", codeId)
-            .eq("owner_id", currentUser.id);
-
-          throw new Error("Nepodařilo se vytvořit první verzi QR: " + versionInsertError.message);
-        }
-
-        const publicUrl = getPublicUrl(codeId);
-        const adminUrl = getAdminUrl(codeId);
-
-        document.getElementById("publicLink").href = publicUrl;
-        document.getElementById("publicLink").textContent = publicUrl;
-        document.getElementById("adminLink").href = adminUrl;
-        document.getElementById("adminLink").textContent = adminUrl;
-
-        await renderQr(publicUrl);
-        document.getElementById("result").classList.add("show");
-
-        showStatus("QR bylo vytvořeno úspěšně.", "success");
-
-      } catch (err) {
-        console.error(err);
-        showStatus(err.message || "Při vytváření QR došlo k chybě.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    async function logout() {
-      await client.auth.signOut();
-      window.location.href = "/login.html";
-    }
-
-    async function initPage() {
-      currentUser = await requireAuth();
-      if (!currentUser) return;
-
-      document.body.style.display = "block";
-    }
-
-    document.getElementById("createBtn").addEventListener("click", createQr);
-    document.getElementById("logoutBtn").addEventListener("click", logout);
-
-    initPage();
-  </script>
+
+<body class="auth-guard">
+
+<header class="topbar">
+<div class="topbar-inner">
+
+<div class="brand">QR App Admin</div>
+
+<nav class="nav">
+<a href="/admin.html">Odpovědi</a>
+<a href="/my-qr.html">Moje QR</a>
+<a href="/create-qr.html" class="active">Vytvořit QR</a>
+<a href="/generator.html">Generátor</a>
+<button id="logoutBtn">Odhlásit</button>
+</nav>
+
+</div>
+</header>
+
+<main class="page">
+
+<h1>Vytvořit QR</h1>
+
+<div class="card">
+
+<label>Název QR</label>
+<input id="title">
+
+<label>Otázka</label>
+<textarea id="question"></textarea>
+
+<button id="createBtn" class="btn primary">Vytvořit QR</button>
+
+<div id="result"></div>
+
+</div>
+
+</main>
+
+<script type="module">
+
+import { client } from "/js/supabase.js"
+import { requireAuth , logout } from "/js/auth.js"
+import { $ } from "/js/helpers.js"
+import { renderQr } from "/js/qr.js"
+
+const result=$("#result")
+
+async function create(){
+
+const user = await requireAuth()
+if(!user) return
+
+const title=$("#title").value
+const question=$("#question").value
+
+const codeId = crypto.randomUUID().slice(0,8)
+
+const schema = [
+  { id:"name", type:"text", label:"Jméno" },
+  { id:"rating", type:"number", label: question || "Hodnocení (1 = nejhorší, 5 = nejlepší)" },
+  { id:"note", type:"textarea", label:"Poznámka" }
+];
+
+await client.from("codes").insert({
+id:codeId,
+title,
+schema,
+owner_id:user.id,
+active:true
+})
+
+await client.from("code_versions").insert({
+code_id:codeId,
+version_number:1,
+title,
+schema,
+is_active:true
+})
+
+const url=window.location.origin+"/index.html?code="+codeId
+
+result.innerHTML=`<h3>QR vytvořeno</h3><div class="qr"></div><a href="${url}">${url}</a>`
+
+renderQr(result.querySelector(".qr"),url)
+
+}
+
+$("#createBtn").addEventListener("click",create)
+$("#logoutBtn").addEventListener("click",logout)
+
+</script>
+
 </body>
 </html>

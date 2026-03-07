@@ -1,113 +1,50 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QR generátor</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <style>
-    body{
-      font-family: Arial, sans-serif;
-      background:#f4f6f8;
-      display:flex;
-      justify-content:center;
-      padding:40px;
-    }
-    .container{
-      background:white;
-      padding:30px;
-      border-radius:10px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.1);
-      width:420px;
-    }
-    h1{
-      margin-top:0;
-    }
-    label{
-      display:block;
-      margin-bottom:6px;
-      font-weight:bold;
-    }
-    input{
-      width:100%;
-      padding:10px;
-      margin-bottom:16px;
-      border-radius:6px;
-      border:1px solid #ccc;
-      font-size:14px;
-      box-sizing:border-box;
-    }
-    button{
-      background:#2d7ef7;
-      color:white;
-      border:none;
-      padding:12px;
-      border-radius:6px;
-      font-size:16px;
-      cursor:pointer;
-      width:100%;
-      margin-bottom:20px;
-    }
-    button:hover{
-      background:#1f63c9;
-    }
-    #qrcode{
-      display:flex;
-      justify-content:center;
-      margin-top:20px;
-    }
-    #linkBox{
-      margin-top:20px;
-      word-break:break-all;
-      font-size:14px;
-      color:#333;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR generátor</title>
+
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
 </head>
+
 <body>
-  <div class="container">
-    <h1>QR generátor</h1>
 
-    <label for="code">Kód formuláře</label>
-    <input id="code" type="text" placeholder="např. TEST1" />
+<main class="page">
 
-    <button id="generateBtn">Vygenerovat QR</button>
+<h1>QR generátor</h1>
 
-    <div id="linkBox"></div>
-    <div id="qrcode"></div>
-  </div>
+<input id="code" placeholder="kód QR">
 
-  <script>
-    const btn = document.getElementById("generateBtn");
-    const codeInput = document.getElementById("code");
-    const qrBox = document.getElementById("qrcode");
-    const linkBox = document.getElementById("linkBox");
+<button id="generateBtn" class="btn primary">Vygenerovat</button>
 
-    btn.addEventListener("click", async () => {
-      const code = codeInput.value.trim();
+<div id="result"></div>
 
-      if (!code) {
-        alert("Zadej kód formuláře");
-        return;
-      }
+</main>
 
-      const formUrl = `${window.location.origin}/index.html?code=${encodeURIComponent(code)}`;
+<script>
 
-      qrBox.innerHTML = "";
-      linkBox.innerHTML = `<strong>Odkaz:</strong><br>${formUrl}`;
+const btn=document.getElementById("generateBtn")
 
-      try {
-        const canvas = document.createElement("canvas");
-        await QRCode.toCanvas(canvas, formUrl, {
-          width: 260,
-          margin: 2
-        });
-        qrBox.appendChild(canvas);
-      } catch (err) {
-        alert("Nepodařilo se vytvořit QR kód.");
-        console.error(err);
-      }
-    });
-  </script>
+btn.onclick=async()=>{
+
+const code=document.getElementById("code").value.trim()
+
+if(!code)return alert("Zadej kód")
+
+const url=location.origin+"/index.html?code="+code
+
+const box=document.getElementById("result")
+
+box.innerHTML="<canvas></canvas><div>"+url+"</div>"
+
+QRCode.toCanvas(box.querySelector("canvas"),url)
+
+}
+
+</script>
+
 </body>
 </html>

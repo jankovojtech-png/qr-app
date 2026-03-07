@@ -5,134 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Přihlášení</title>
 
+<link rel="stylesheet" href="/css/app.css">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
-  font-family:Arial,sans-serif;
-  background:#f4f6f8;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  min-height:100vh;
-  margin:0;
-}
-
-.box{
-  background:white;
-  padding:30px;
-  border-radius:10px;
-  width:350px;
-  box-shadow:0 4px 20px rgba(0,0,0,0.1);
-}
-
-h2{
-  margin-top:0;
-  margin-bottom:16px;
-}
-
-input{
-  width:100%;
-  padding:10px;
-  margin-bottom:12px;
-  border:1px solid #ccc;
-  border-radius:6px;
-  box-sizing:border-box;
-}
-
-button{
-  width:100%;
-  padding:10px;
-  background:#2d7ef7;
-  border:none;
-  color:white;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-button:disabled{
-  opacity:0.7;
-  cursor:not-allowed;
-}
-
-#msg{
-  margin-top:10px;
-  min-height:20px;
-}
-</style>
 </head>
 
-<body>
+<body class="login-layout">
 
-<div class="box">
-  <h2>Přihlášení</h2>
+<div class="login-box">
 
-  <input id="email" type="email" placeholder="Email">
-  <input id="password" type="password" placeholder="Heslo">
+<h2>Přihlášení</h2>
 
-  <button id="loginBtn" onclick="login()">Přihlásit</button>
+<input id="email" type="email" placeholder="Email">
 
-  <div id="msg"></div>
+<input id="password" type="password" placeholder="Heslo">
+
+<button id="loginBtn">Přihlásit</button>
+
+<div id="msg"></div>
+
 </div>
 
-<script>
-const SUPABASE_URL = "https://lpawgvdrzpbxozctfzxd.supabase.co";
-const SUPABASE_KEY = "sb_publishable_XaWFZ5tXOrwtY43Jb7wh6g_LO76lCQZ";
+<script type="module">
 
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-async function redirectIfLoggedIn() {
-  const { data, error } = await client.auth.getUser();
-
-  if (!error && data?.user) {
-    window.location.href = "/admin.html";
-  }
-}
+import { client } from "/js/supabase.js";
 
 async function login(){
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value.trim();
-  const msg = document.getElementById("msg");
-  const loginBtn = document.getElementById("loginBtn");
 
-  msg.innerText = "";
+const email = document.getElementById("email").value.trim();
+const password = document.getElementById("password").value.trim();
 
-  if (!email || !password) {
-    msg.innerText = "Vyplňte email i heslo.";
-    return;
-  }
+const msg = document.getElementById("msg");
 
-  loginBtn.disabled = true;
-  loginBtn.innerText = "Přihlašuji...";
-
-  const { error } = await client.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  if(error){
-    msg.innerText = error.message;
-    loginBtn.disabled = false;
-    loginBtn.innerText = "Přihlásit";
-    return;
-  }
-
-  window.location.href = "/admin.html";
+if(!email || !password){
+msg.textContent = "Vyplňte email i heslo.";
+return;
 }
 
-document.getElementById("password").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    login();
-  }
-});
+const { error } = await client.auth.signInWithPassword({ email,password });
 
-document.getElementById("email").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    login();
-  }
-});
+if(error){
+msg.textContent = error.message;
+return;
+}
 
-redirectIfLoggedIn();
+window.location.href = "/admin.html";
+
+}
+
+document.getElementById("loginBtn").addEventListener("click",login);
+
 </script>
 
 </body>
