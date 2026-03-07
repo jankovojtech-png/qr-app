@@ -62,7 +62,7 @@ const question=$("#question").value
 
 const schema=[
 { id:"name",type:"text",label:"Jméno"},
-{ id:"rating",type:"number",label:question},
+{ id:"rating", type:"number", label: question || "Hodnocení (1 = nejhorší, 5 = nejlepší)" }
 { id:"note",type:"textarea",label:"Poznámka"}
 ]
 

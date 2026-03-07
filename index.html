@@ -56,11 +56,19 @@ label.textContent = field.label || "";
 
 let input;
 
-if(field.type === "textarea"){
-input = document.createElement("textarea");
-}else{
-input = document.createElement("input");
-input.type = field.type === "number" ? "number" : "text";
+if (field.type === "textarea") {
+  input = document.createElement("textarea");
+} else {
+  input = document.createElement("input");
+
+  if (field.type === "number") {
+    input.type = "number";
+    input.min = "1";
+    input.max = "5";
+    input.step = "1";
+  } else {
+    input.type = "text";
+  }
 }
 
 input.name = field.id;
