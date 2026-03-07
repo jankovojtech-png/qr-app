@@ -22,7 +22,7 @@
 <a href="/my-qr.html">Moje QR</a>
 <a href="/create-qr.html" class="active">Vytvořit QR</a>
 <a href="/generator.html">Generátor</a>
-<button id="logoutBtn">Odhlásit</button>
+<button id="logoutBtn" type="button">Odhlásit</button>
 </nav>
 
 </div>
@@ -34,15 +34,26 @@
 
 <div class="card">
 
-<label>Název QR</label>
-<input id="title">
+<label for="title">Název QR</label>
+<input id="title" placeholder="Např. Pokoj 12 / Stůl 4 / Tramvaj 1742">
 
-<label>Otázka</label>
-<textarea id="question"></textarea>
+<label for="mode">Typ obsahu</label>
+<select id="mode">
+  <option value="rating">Hodnocení + poznámka</option>
+  <option value="question">Jedna otázka + odpověď</option>
+  <option value="info">Pouze informace</option>
+</select>
 
-<button id="createBtn" class="btn primary">Vytvořit QR</button>
+<label for="question">Otázka / text</label>
+<textarea id="question" rows="4" placeholder="Např. Jak jste byli spokojeni?"></textarea>
 
-<div id="result"></div>
+<div class="muted" style="margin-top:-8px; margin-bottom:12px;">
+  U typu „info“ se tento text zobrazí jako informace.
+</div>
+
+<button id="createBtn" class="btn primary" type="button">Vytvořit QR</button>
+
+<div id="result" style="margin-top:20px;"></div>
 
 </div>
 
@@ -55,50 +66,145 @@ import { requireAuth , logout } from "/js/auth.js"
 import { $ } from "/js/helpers.js"
 import { renderQr } from "/js/qr.js"
 
-const result=$("#result")
+const result = $("#result")
+const titleInput = $("#title")
+const modeInput = $("#mode")
+const questionInput = $("#question")
+const createBtn = $("#createBtn")
 
-async function create(){
+let currentUser = null
 
-const user = await requireAuth()
-if(!user) return
-
-const title=$("#title").value
-const question=$("#question").value
-
-const codeId = crypto.randomUUID().slice(0,8)
-
-const schema = [
-  { id:"name", type:"text", label:"Jméno" },
-  { id:"rating", type:"rating", label: question || "Hodnocení (1 = nejhorší, 5 = nejlepší)" },
-  { id:"note", type:"textarea", label:"Poznámka" }
-];
-
-await client.from("codes").insert({
-id:codeId,
-title,
-schema,
-owner_id:user.id,
-active:true
-})
-
-await client.from("code_versions").insert({
-code_id:codeId,
-version_number:1,
-title,
-schema,
-is_active:true
-})
-
-const url=window.location.origin+"/index.html?code="+codeId
-
-result.innerHTML=`<h3>QR vytvořeno</h3><div class="qr"></div><a href="${url}">${url}</a>`
-
-renderQr(result.querySelector(".qr"),url)
-
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
 }
 
-$("#createBtn").addEventListener("click",create)
-$("#logoutBtn").addEventListener("click",logout)
+function generateCodeId(title) {
+  const base = slugify(title) || "qr"
+  const random = Math.random().toString(36).slice(2, 7).toUpperCase()
+  return base + "-" + random
+}
+
+function buildSchema(mode, questionText) {
+  if (mode === "rating") {
+    return [
+      { id: "name", type: "text", label: "Jméno" },
+      { id: "rating", type: "rating", label: questionText || "Hodnocení 1-5" },
+      { id: "note", type: "textarea", label: "Poznámka" }
+    ]
+  }
+
+  if (mode === "question") {
+    return [
+      { id: "answer", type: "textarea", label: questionText || "Vaše odpověď" }
+    ]
+  }
+
+  if (mode === "info") {
+    return [
+      { id: "info", type: "info", label: questionText || "Informace" }
+    ]
+  }
+
+  return []
+}
+
+async function create() {
+  if (!currentUser) {
+    currentUser = await requireAuth()
+    if (!currentUser) return
+  }
+
+  const title = titleInput.value.trim()
+  const mode = modeInput.value
+  const question = questionInput.value.trim()
+
+  if (!title) {
+    alert("Vyplň název QR.")
+    return
+  }
+
+  const schema = buildSchema(mode, question)
+
+  if (!schema.length) {
+    alert("Nepodařilo se vytvořit obsah QR.")
+    return
+  }
+
+  createBtn.disabled = true
+  result.innerHTML = ""
+
+  try {
+    const codeId = generateCodeId(title)
+
+    const { error: codeError } = await client
+      .from("codes")
+      .insert({
+        id: codeId,
+        title,
+        schema,
+        owner_id: currentUser.id,
+        active: true
+      })
+
+    if (codeError) {
+      throw new Error(codeError.message)
+    }
+
+    const { error: versionError } = await client
+      .from("code_versions")
+      .insert({
+        code_id: codeId,
+        version_number: 1,
+        title,
+        schema,
+        is_active: true
+      })
+
+    if (versionError) {
+      throw new Error(versionError.message)
+    }
+
+    const url = window.location.origin + "/index.html?code=" + encodeURIComponent(codeId)
+
+    result.innerHTML = `
+      <h3>QR vytvořeno</h3>
+      <div class="qr" style="margin:16px 0;"></div>
+      <div class="link-box" style="word-break:break-all;">
+        <strong>Veřejný odkaz:</strong><br>
+        <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>
+      </div>
+    `
+
+    renderQr(result.querySelector(".qr"), url)
+
+    titleInput.value = ""
+    questionInput.value = ""
+    modeInput.value = "rating"
+
+  } catch (err) {
+    alert("Chyba při vytváření QR: " + (err.message || "neznámá chyba"))
+  } finally {
+    createBtn.disabled = false
+  }
+}
+
+async function init() {
+  currentUser = await requireAuth()
+  if (!currentUser) return
+
+  document.body.style.display = "block"
+}
+
+$("#createBtn").addEventListener("click", create)
+$("#logoutBtn").addEventListener("click", logout)
+
+init()
 
 </script>
 
