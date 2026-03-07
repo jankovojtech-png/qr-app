@@ -7,6 +7,128 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/css/app.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    .versions-box{
+      background:white;
+      padding:16px;
+      margin-bottom:20px;
+      border-radius:16px;
+      border:1px solid var(--border, #e5e7eb);
+      box-shadow:var(--shadow, 0 10px 30px rgba(0,0,0,.06));
+    }
+
+    .versions-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+
+    .versions-title{
+      font-weight:bold;
+      font-size:20px;
+    }
+
+    .filter-buttons{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .filter-btn{
+      border:1px solid #d1d5db;
+      background:#fff;
+      color:#111827;
+      padding:9px 12px;
+      border-radius:10px;
+      font-size:13px;
+      font-weight:700;
+      cursor:pointer;
+    }
+
+    .filter-btn.active{
+      background:#111827;
+      color:#fff;
+      border-color:#111827;
+    }
+
+    .versions-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+      gap:12px;
+    }
+
+    .version-card{
+      background:#f9fafb;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:14px;
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+
+    .version-card:hover{
+      border-color:#cbd5e1;
+    }
+
+    .version-card.active{
+      border-color:#93c5fd;
+      background:#eff6ff;
+    }
+
+    .version-card.filtered{
+      outline:2px solid #111827;
+      outline-offset:0;
+    }
+
+    .version-title{
+      font-weight:bold;
+      margin-bottom:8px;
+      line-height:1.4;
+    }
+
+    .version-meta{
+      font-size:14px;
+      color:#555;
+      margin-bottom:6px;
+      line-height:1.5;
+    }
+
+    .version-actions{
+      margin-top:12px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .badge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:bold;
+      margin-bottom:10px;
+    }
+
+    .badge.active{
+      background:#dbeafe;
+      color:#1d4ed8;
+    }
+
+    .badge.inactive{
+      background:#e5e7eb;
+      color:#374151;
+    }
+
+    .btn.small{
+      padding:8px 12px;
+      font-size:13px;
+      border-radius:9px;
+    }
+  </style>
 </head>
 <body class="auth-guard">
   <header class="topbar">
@@ -55,6 +177,17 @@
 
     <div class="box" id="status">Ověřuji přihlášení...</div>
 
+    <div id="versionsSection" class="versions-box" style="display:none;">
+      <div class="versions-head">
+        <div class="versions-title">Verze tohoto QR</div>
+        <div class="filter-buttons" id="filterButtons">
+          <button class="filter-btn active" type="button" data-filter-mode="all">Všechny verze</button>
+          <button class="filter-btn" type="button" data-filter-mode="active">Jen aktivní verze</button>
+        </div>
+      </div>
+      <div id="versionsGrid" class="versions-grid"></div>
+    </div>
+
     <div class="table-wrap">
       <table>
         <thead>
@@ -81,6 +214,7 @@
     import { setBoxStatus } from "/js/ui.js";
 
     let currentUser = null;
+    let currentVersionFilter = { mode: "all", versionId: null };
 
     function getAnswerName(answers) {
       if (!answers || typeof answers !== "object") return "";
@@ -97,6 +231,47 @@
       return answers.rating ?? "";
     }
 
+    function isValidRating(value) {
+      const num = Number(value);
+      return !Number.isNaN(num) && num >= 1 && num <= 5;
+    }
+
+    function updateFilterButtonsUI() {
+      document.querySelectorAll("[data-filter-mode]").forEach((btn) => {
+        const mode = btn.getAttribute("data-filter-mode");
+        const isActive = currentVersionFilter.mode === mode && mode !== "version";
+        btn.classList.toggle("active", isActive);
+      });
+    }
+
+    function updateVersionCardsUI() {
+      document.querySelectorAll(".version-card").forEach((card) => {
+        const versionId = card.getAttribute("data-version-id");
+        const isFilteredVersion =
+          currentVersionFilter.mode === "version" &&
+          currentVersionFilter.versionId === versionId;
+
+        card.classList.toggle("filtered", isFilteredVersion);
+      });
+    }
+
+    function renderHeaderActions(selectedCode) {
+      const headerActions = $("#headerActions");
+
+      if (selectedCode) {
+        headerActions.innerHTML = `
+          <a class="btn light" href="/my-qr.html">Moje QR</a>
+          <a class="btn light" href="/edit-qr.html?code=${encodeURIComponent(selectedCode)}">Upravit QR</a>
+          <a class="btn primary" href="/create-qr.html">Vytvořit QR</a>
+        `;
+      } else {
+        headerActions.innerHTML = `
+          <a class="btn light" href="/my-qr.html">Moje QR</a>
+          <a class="btn primary" href="/create-qr.html">Vytvořit QR</a>
+        `;
+      }
+    }
+
     async function loadAdminData() {
       const tbody = $("#tbody");
       const emptyTable = $("#emptyTable");
@@ -104,17 +279,228 @@
       const avgRating = $("#avgRating");
       const codeCount = $("#codeCount");
       const status = $("#status");
+      const versionsSection = $("#versionsSection");
+      const versionsGrid = $("#versionsGrid");
+      const pageTitle = $("#pageTitle");
+      const pageLead = $("#pageLead");
 
       tbody.innerHTML = "";
       emptyTable.style.display = "none";
+      versionsGrid.innerHTML = "";
+      versionsSection.style.display = "none";
 
       setBoxStatus(status, "Načítám data...");
       $("#userEmail").textContent = currentUser.email ? "Přihlášen: " + currentUser.email : "Přihlášený uživatel";
 
-      const { data, error } = await client
+      const params = new URLSearchParams(window.location.search);
+      const selectedCode = params.get("code");
+
+      renderHeaderActions(selectedCode);
+
+      const { data: myCodes, error: myCodesError } = await client
+        .from("codes")
+        .select("id, title, active, created_at")
+        .eq("owner_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      if (myCodesError) {
+        setBoxStatus(status, "Chyba načtení QR kódů: " + myCodesError.message, "error");
+        return;
+      }
+
+      if (!myCodes || !myCodes.length) {
+        totalCount.textContent = "0";
+        avgRating.textContent = "0";
+        codeCount.textContent = "0";
+        emptyTable.style.display = "block";
+        pageTitle.textContent = "Odpovědi z formulářů";
+        pageLead.textContent = "Zatím nemáte vytvořený žádný QR kód.";
+        setBoxStatus(status, "Zatím nemáte žádný QR kód.");
+        return;
+      }
+
+      const myCodeIds = myCodes.map(code => code.id);
+      const codeInfoMap = {};
+      myCodes.forEach(code => {
+        codeInfoMap[code.id] = code;
+      });
+
+      if (selectedCode) {
+        if (!myCodeIds.includes(selectedCode)) {
+          totalCount.textContent = "0";
+          avgRating.textContent = "0";
+          codeCount.textContent = "0";
+          emptyTable.style.display = "block";
+          pageTitle.textContent = "Detail QR";
+          pageLead.textContent = "Vybraný QR kód nebyl nalezen nebo nepatří přihlášenému uživateli.";
+          setBoxStatus(status, "Tento QR kód nepatří přihlášenému uživateli nebo neexistuje.", "error");
+          return;
+        }
+
+        const selectedTitle = codeInfoMap[selectedCode]?.title || selectedCode;
+        pageTitle.textContent = "Odpovědi pro QR: " + selectedTitle;
+        pageLead.textContent = "Detail odpovědí a verzí pro konkrétní QR kód.";
+      } else {
+        pageTitle.textContent = "Odpovědi z formulářů";
+        pageLead.textContent = "Přehled odpovědí z tvých QR formulářů včetně verzí obsahu.";
+      }
+
+      let versionMap = {};
+      let versionsForSelectedCode = [];
+      let activeVersionMapByCodeId = {};
+
+      if (selectedCode) {
+        const { data: versionsData, error: versionsError } = await client
+          .from("code_versions")
+          .select("id, code_id, version_number, title, schema, is_active, created_at")
+          .eq("code_id", selectedCode)
+          .order("version_number", { ascending: false });
+
+        if (versionsError) {
+          console.error(versionsError);
+        } else {
+          versionsForSelectedCode = versionsData || [];
+
+          versionsForSelectedCode.forEach(version => {
+            versionMap[version.id] = version;
+            if (version.is_active) {
+              activeVersionMapByCodeId[version.code_id] = version;
+            }
+          });
+        }
+      } else {
+        const { data: versionsData, error: versionsError } = await client
+          .from("code_versions")
+          .select("id, code_id, version_number, title, is_active, created_at")
+          .in("code_id", myCodeIds);
+
+        if (versionsError) {
+          console.error(versionsError);
+        } else {
+          (versionsData || []).forEach(version => {
+            versionMap[version.id] = version;
+            if (version.is_active && !activeVersionMapByCodeId[version.code_id]) {
+              activeVersionMapByCodeId[version.code_id] = version;
+            }
+          });
+        }
+      }
+
+      if (selectedCode && versionsForSelectedCode.length > 0) {
+        versionsSection.style.display = "block";
+
+        const activeVersionForCode = versionsForSelectedCode.find(v => v.is_active) || null;
+
+        if (
+          currentVersionFilter.mode === "active" &&
+          !activeVersionForCode
+        ) {
+          currentVersionFilter = { mode: "all", versionId: null };
+        }
+
+        if (
+          currentVersionFilter.mode === "version" &&
+          currentVersionFilter.versionId &&
+          !versionsForSelectedCode.some(v => String(v.id) === String(currentVersionFilter.versionId))
+        ) {
+          currentVersionFilter = { mode: "all", versionId: null };
+        }
+
+        updateFilterButtonsUI();
+
+        const { data: responsesForCounts, error: responsesForCountsError } = await client
+          .from("responses")
+          .select("id, code_version_id")
+          .eq("code_id", selectedCode);
+
+        const versionCounts = {};
+        if (!responsesForCountsError && responsesForCounts) {
+          responsesForCounts.forEach(r => {
+            const key = r.code_version_id || "unknown";
+            versionCounts[key] = (versionCounts[key] || 0) + 1;
+          });
+        }
+
+        versionsForSelectedCode.forEach(version => {
+          const card = document.createElement("div");
+          card.className = "version-card" + (version.is_active ? " active" : "");
+          card.setAttribute("data-version-id", String(version.id));
+
+          const isFilteredVersion =
+            currentVersionFilter.mode === "version" &&
+            String(currentVersionFilter.versionId) === String(version.id);
+
+          if (isFilteredVersion) {
+            card.classList.add("filtered");
+          }
+
+          card.innerHTML = `
+            <div class="badge ${version.is_active ? "active" : "inactive"}">
+              ${version.is_active ? "Aktivní verze" : "Historická verze"}
+            </div>
+            <div class="version-title">
+              Verze ${escapeHtml(version.version_number)}${version.title ? " – " + escapeHtml(version.title) : ""}
+            </div>
+            <div class="version-meta"><strong>Odpovědí:</strong> ${versionCounts[version.id] || 0}</div>
+            <div class="version-meta"><strong>Vytvořeno:</strong> ${escapeHtml(formatDate(version.created_at))}</div>
+            <div class="version-actions">
+              <button class="btn light small" type="button" data-filter-version="${escapeHtml(version.id)}">
+                Zobrazit odpovědi této verze
+              </button>
+            </div>
+          `;
+
+          versionsGrid.appendChild(card);
+        });
+
+        $("#filterButtons").querySelectorAll("[data-filter-mode]").forEach((btn) => {
+          btn.onclick = async () => {
+            const mode = btn.getAttribute("data-filter-mode");
+            currentVersionFilter = { mode, versionId: null };
+            await loadAdminData();
+          };
+        });
+
+        versionsGrid.querySelectorAll("[data-filter-version]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const versionId = btn.getAttribute("data-filter-version");
+            currentVersionFilter = { mode: "version", versionId };
+            await loadAdminData();
+          });
+        });
+
+        versionsGrid.querySelectorAll(".version-card").forEach((card) => {
+          card.addEventListener("click", async (e) => {
+            if (e.target.closest("button")) return;
+            const versionId = card.getAttribute("data-version-id");
+            currentVersionFilter = { mode: "version", versionId };
+            await loadAdminData();
+          });
+        });
+      }
+
+      let responsesQuery = client
         .from("responses")
         .select("id, code_id, code_version_id, answers, created_at")
         .order("created_at", { ascending: false });
+
+      if (selectedCode) {
+        responsesQuery = responsesQuery.eq("code_id", selectedCode);
+
+        if (currentVersionFilter.mode === "active") {
+          const activeVersion = versionsForSelectedCode.find(v => v.is_active);
+          if (activeVersion) {
+            responsesQuery = responsesQuery.eq("code_version_id", activeVersion.id);
+          }
+        } else if (currentVersionFilter.mode === "version" && currentVersionFilter.versionId) {
+          responsesQuery = responsesQuery.eq("code_version_id", currentVersionFilter.versionId);
+        }
+      } else {
+        responsesQuery = responsesQuery.in("code_id", myCodeIds);
+      }
+
+      const { data, error } = await responsesQuery;
 
       if (error) {
         setBoxStatus(status, "Chyba načtení: " + error.message, "error");
@@ -124,9 +510,25 @@
       if (!data || !data.length) {
         totalCount.textContent = "0";
         avgRating.textContent = "0";
-        codeCount.textContent = "0";
+        codeCount.textContent = selectedCode ? "1" : String(myCodeIds.length);
         emptyTable.style.display = "block";
-        setBoxStatus(status, "Zatím nejsou žádné odpovědi.");
+
+        if (selectedCode) {
+          if (currentVersionFilter.mode === "active") {
+            setBoxStatus(status, "Pro aktivní verzi tohoto QR zatím nejsou žádné odpovědi.");
+            emptyTable.textContent = "Pro aktivní verzi tohoto QR zatím nejsou žádné odpovědi.";
+          } else if (currentVersionFilter.mode === "version") {
+            setBoxStatus(status, "Pro tuto verzi zatím nejsou žádné odpovědi.");
+            emptyTable.textContent = "Pro tuto verzi zatím nejsou žádné odpovědi.";
+          } else {
+            setBoxStatus(status, "Pro tento QR zatím nejsou žádné odpovědi.");
+            emptyTable.textContent = "Pro tento QR zatím nejsou žádné odpovědi.";
+          }
+        } else {
+          setBoxStatus(status, "Zatím nejsou žádné odpovědi k vašim QR kódům.");
+          emptyTable.textContent = "Zatím nejsou žádné odpovědi k vašim QR kódům.";
+        }
+
         return;
       }
 
@@ -140,15 +542,32 @@
         codes.add(r.code_id);
 
         const rating = Number(answers.rating);
-        if (!Number.isNaN(rating) && answers.rating !== "" && answers.rating != null) {
+        if (isValidRating(rating)) {
           ratings.push(rating);
         }
 
+        const versionInfo = r.code_version_id && versionMap[r.code_version_id]
+          ? versionMap[r.code_version_id]
+          : null;
+
+        const currentActiveVersion = activeVersionMapByCodeId[r.code_id] || null;
+
+        const versionLabel = versionInfo
+          ? "v" + versionInfo.version_number + (versionInfo.is_active ? " (aktivní)" : "")
+          : (r.code_version_id ? "Neznámá verze" : "Původní data");
+
+        const displayTitle =
+          versionInfo?.title ||
+          currentActiveVersion?.title ||
+          codeInfoMap[r.code_id]?.title ||
+          r.code_id ||
+          "";
+
         const row = document.createElement("tr");
         row.innerHTML = `
+          <td>${escapeHtml(displayTitle)}</td>
           <td>${escapeHtml(r.code_id || "")}</td>
-          <td>${escapeHtml(r.code_id || "")}</td>
-          <td>v1</td>
+          <td>${escapeHtml(versionLabel)}</td>
           <td>${escapeHtml(getAnswerName(answers))}</td>
           <td>${escapeHtml(String(getAnswerRating(answers)))}</td>
           <td>${escapeHtml(getAnswerNote(answers))}</td>
@@ -157,12 +576,44 @@
         tbody.appendChild(row);
       });
 
-      codeCount.textContent = String(codes.size);
+      codeCount.textContent = selectedCode ? "1" : String(codes.size);
       avgRating.textContent = ratings.length
         ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
         : "0";
 
-      setBoxStatus(status, `Načteno odpovědí: ${data.length}`);
+      if (selectedCode) {
+        if (currentVersionFilter.mode === "active") {
+          const activeVersion = versionsForSelectedCode.find(v => v.is_active);
+          setBoxStatus(
+            status,
+            "Načteno odpovědí pro aktivní verzi QR " +
+            (codeInfoMap[selectedCode]?.title || selectedCode) +
+            ": " + data.length
+          );
+        } else if (currentVersionFilter.mode === "version") {
+          const selectedVersion = versionsForSelectedCode.find(v => String(v.id) === String(currentVersionFilter.versionId));
+          setBoxStatus(
+            status,
+            "Načteno odpovědí pro verzi " +
+            (selectedVersion ? selectedVersion.version_number : "?") +
+            " QR " +
+            (codeInfoMap[selectedCode]?.title || selectedCode) +
+            ": " + data.length
+          );
+        } else {
+          setBoxStatus(
+            status,
+            "Načteno odpovědí pro QR " +
+            (codeInfoMap[selectedCode]?.title || selectedCode) +
+            ": " + data.length
+          );
+        }
+      } else {
+        setBoxStatus(status, `Načteno odpovědí: ${data.length}`);
+      }
+
+      updateFilterButtonsUI();
+      updateVersionCardsUI();
     }
 
     async function init() {
