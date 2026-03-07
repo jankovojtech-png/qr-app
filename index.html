@@ -60,7 +60,7 @@
         stars.setAttribute("role", "radiogroup");
         stars.setAttribute("aria-label", field.label || "Hodnocení");
 
-        for (let i = 1; i <= 5; i++) {
+        for (let i = 5; i >= 1; i--) {
           const input = document.createElement("input");
           input.type = "radio";
           input.id = `${field.id}-${i}`;
